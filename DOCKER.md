@@ -75,6 +75,25 @@ docker compose down
 docker compose down -v
 ```
 
+### 5. Ver cambios después de editar código (Vue, PHP, etc.)
+
+Docker usa **caché** de capas: si no reconstruís sin caché, puede seguir sirviendo una versión vieja. Para que se apliquen tus cambios:
+
+1. **Reconstruir la imagen sin caché y levantar de nuevo:**
+   ```bash
+   docker compose build --no-cache app
+   docker compose up -d --force-recreate
+   ```
+
+2. **Refresco forzado en el navegador:** `Ctrl+Shift+R` (o Cmd+Shift+R en Mac) para no usar caché del navegador.
+
+3. **(Opcional)** Si aún ves algo viejo, limpiar caché de Laravel dentro del contenedor:
+   ```bash
+   docker compose exec app php artisan optimize:clear
+   ```
+
+El entrypoint ya ejecuta `php artisan view:clear` al arrancar para que se use el manifest de Vite actual.
+
 ## Servicios
 
 | Servicio   | Imagen / Build | Puerto | Descripción                    |
@@ -86,10 +105,11 @@ docker compose down -v
 
 Puedes definir en tu `.env` (en la raíz del proyecto) o exportar antes de `docker compose up`:
 
+- `APP_PORT` — puerto del host donde se expone la app (default: **80** en local). En producción podés usar `APP_PORT=8035` para exponer en 8035.
 - `DB_DATABASE` (default: foodstarks)
 - `DB_USERNAME` (default: foodstarks)
 - `DB_PASSWORD` (default: secret)
-- `APP_KEY` — si está vacío, se genera al arrancar el contenedor
+- `APP_KEY` — obligatorio para que la app funcione
 
 ## Desarrollo local con Docker
 
