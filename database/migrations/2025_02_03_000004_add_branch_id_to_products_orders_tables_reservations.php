@@ -6,46 +6,18 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * This migration is deprecated. branch_id is now defined in the create_* migrations.
+     * Run migrate:fresh after removing this file from your deployment.
+     */
     public function up(): void
     {
-        Schema::table('products', function (Blueprint $table) {
-            $table->uuid('branch_id')->nullable()->after('restaurant_id');
-            $table->foreign('branch_id')->references('id')->on('branches')->onDelete('cascade');
-        });
-
-        Schema::table('orders', function (Blueprint $table) {
-            $table->uuid('branch_id')->nullable()->after('restaurant_id');
-            $table->foreign('branch_id')->references('id')->on('branches')->onDelete('cascade');
-        });
-
-        Schema::table('tables', function (Blueprint $table) {
-            $table->uuid('branch_id')->nullable()->after('restaurant_id');
-            $table->foreign('branch_id')->references('id')->on('branches')->onDelete('cascade');
-        });
-
-        Schema::table('reservations', function (Blueprint $table) {
-            $table->uuid('branch_id')->nullable()->after('restaurant_id');
-            $table->foreign('branch_id')->references('id')->on('branches')->onDelete('cascade');
-        });
+        // No-op: branch_id already in create_products_table, create_orders_table,
+        // create_tables_table, create_reservations_table
     }
 
     public function down(): void
     {
-        Schema::table('products', function (Blueprint $table) {
-            $table->dropForeign(['branch_id']);
-            $table->dropColumn('branch_id');
-        });
-        Schema::table('orders', function (Blueprint $table) {
-            $table->dropForeign(['branch_id']);
-            $table->dropColumn('branch_id');
-        });
-        Schema::table('tables', function (Blueprint $table) {
-            $table->dropForeign(['branch_id']);
-            $table->dropColumn('branch_id');
-        });
-        Schema::table('reservations', function (Blueprint $table) {
-            $table->dropForeign(['branch_id']);
-            $table->dropColumn('branch_id');
-        });
+        // No-op
     }
 };

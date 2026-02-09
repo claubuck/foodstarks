@@ -17,7 +17,7 @@ return new class extends Migration
             $table->foreign('restaurant_id')->references('id')->on('restaurants')->onDelete('cascade');
             $table->string('name');
             $table->string('email')->unique();
-            $table->enum('role', ['admin', 'manager', 'chef', 'waiter'])->default('waiter');
+            $table->enum('role', ['owner', 'admin', 'manager', 'chef', 'waiter'])->default('waiter');
             $table->string('avatar_url')->nullable();
             $table->timestamp('last_login')->nullable();
             $table->timestamp('email_verified_at')->nullable();
