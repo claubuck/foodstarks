@@ -7,12 +7,13 @@ if [ -n "$DB_HOST" ] && [ "$DB_CONNECTION" = "pgsql" ]; then
   php -r "
     \$host = getenv('DB_HOST');
     \$port = getenv('DB_PORT') ?: '5432';
+    \$dbname = getenv('DB_DATABASE') ?: 'postgres';
     \$max = 60;
     \$i = 0;
     while (\$i < \$max) {
       try {
         \$pdo = new PDO(
-          \"pgsql:host=\$host;port=\$port\",
+          \"pgsql:host=\$host;port=\$port;dbname=\$dbname\",
           getenv('DB_USERNAME') ?: 'postgres',
           getenv('DB_PASSWORD') ?: ''
         );
