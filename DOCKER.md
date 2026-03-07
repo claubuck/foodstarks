@@ -65,7 +65,11 @@ docker compose exec app php artisan migrate
 # Ejecutar seeders
 docker compose exec app php artisan db:seed
 
-# Entrar al contenedor de la app
+# Composer (si el comando se queda colgado, usa -T y --no-interaction)
+docker compose exec -T app composer dump-autoload --no-interaction
+docker compose exec -T app composer install --no-interaction
+
+# Entrar al contenedor de la app (shell: sh, no bash)
 docker compose exec app sh
 
 # Parar todo
@@ -75,7 +79,22 @@ docker compose down
 docker compose down -v
 ```
 
-### 5. Ver cambios después de editar código (Vue, PHP, etc.)
+### 5. 502 Bad Gateway (nginx)
+
+Si nginx devuelve 502, suele ser porque el contenedor de la app **no llega a arrancar** Laravel: el entrypoint espera a PostgreSQL y si la conexión falla (usuario/contraseña incorrectos), nunca se ejecuta `php artisan serve`.
+
+- **Causa:** Las variables `DB_USERNAME`, `DB_PASSWORD` y `DB_DATABASE` en tu `.env` no coinciden con las que usó PostgreSQL cuando se creó el volumen (Postgres guarda esas credenciales al inicializar el volumen).
+- **Solución 1:** Poner en `.env` las mismas credenciales que cuando levantaste por primera vez (por defecto en `docker-compose.yml`: usuario `foodstarks`, contraseña `secret`, base `foodstarks`).
+- **Solución 2:** Si quieres usar otras credenciales, reinicializar la base (se pierden los datos):
+  ```bash
+  docker compose down -v
+  docker compose up -d
+  ```
+  Así Postgres se crea de nuevo con los valores actuales de `.env`.
+
+Comprueba los logs: `docker logs foodstarks-app`. Si ves "Timeout esperando PostgreSQL" en bucle, es un fallo de conexión/credenciales.
+
+### 6. Ver cambios después de editar código (Vue, PHP, etc.)
 
 Docker usa **caché** de capas: si no reconstruís sin caché, puede seguir sirviendo una versión vieja. Para que se apliquen tus cambios:
 
