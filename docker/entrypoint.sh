@@ -33,7 +33,8 @@ if [ "$RUN_MIGRATE" = "true" ]; then
   php artisan migrate --force --no-interaction || true
 fi
 
-# Limpiar caché de vistas para que se use el manifest de Vite actual (public/build)
+# Limpiar cachés para que se use manifest de Vite y config/URL actual (evita assets por http tras proxy HTTPS)
+php artisan config:clear
 php artisan view:clear
 
 exec "$@"
