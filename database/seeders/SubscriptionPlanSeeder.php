@@ -11,6 +11,15 @@ class SubscriptionPlanSeeder extends Seeder
     {
         $plans = [
             [
+                'name' => 'Free',
+                'slug' => 'free',
+                'price_monthly' => 0,
+                'max_branches' => 1,
+                'max_users' => 5,
+                'features' => ['1 sucursal', '5 empleados', 'Funciones básicas'],
+                'is_active' => true,
+            ],
+            [
                 'name' => 'Básico',
                 'slug' => 'basico',
                 'price_monthly' => 29.99,

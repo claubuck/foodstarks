@@ -31,4 +31,10 @@ class SubscriptionPlan extends Model
     {
         return $this->hasMany(Subscription::class, 'plan_id');
     }
+
+    /** Plan gratuito: tiempo ilimitado; más adelante se pueden limitar módulos/funciones. */
+    public function isFree(): bool
+    {
+        return $this->slug === 'free';
+    }
 }

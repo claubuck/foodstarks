@@ -62,14 +62,14 @@ class RegisteredUserController extends Controller
                 'role' => 'owner',
             ]);
 
-            $plan = SubscriptionPlan::where('is_active', true)->first();
+            $plan = SubscriptionPlan::where('slug', 'free')->where('is_active', true)->first();
             if ($plan) {
                 Subscription::create([
                     'restaurant_id' => $restaurant->id,
                     'plan_id' => $plan->id,
-                    'status' => 'trial',
+                    'status' => 'active',
                     'current_period_start' => now(),
-                    'current_period_end' => now()->addDays(14),
+                    'current_period_end' => null, // Free: ilimitado en tiempo; luego limitaremos módulos/funciones
                 ]);
             }
 

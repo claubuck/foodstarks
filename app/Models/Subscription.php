@@ -36,8 +36,13 @@ class Subscription extends Model
 
     public function isActive(): bool
     {
-        return in_array($this->status, ['trial', 'active'])
-            && $this->current_period_end
-            && $this->current_period_end->isFuture();
+        if (! in_array($this->status, ['trial', 'active'])) {
+            return false;
+        }
+        // Plan Free (o sin fecha fin): periodo ilimitado
+        if ($this->current_period_end === null) {
+            return true;
+        }
+        return $this->current_period_end->isFuture();
     }
 }
