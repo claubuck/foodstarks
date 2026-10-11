@@ -6,7 +6,8 @@ cobro, productos, reservas, empleados y suscripciones. UI y textos en español (
 ## Stack
 
 - Laravel 12 + PHP ^8.4 · Inertia v2 + Vue 3 (`<script setup>`) + Tailwind 3 · Ziggy (`route()` en JS)
-- PostgreSQL (prod/docker) · SQLite (local y tests) · Redis (cache, sesión y colas en prod)
+- **Producción usa PostgreSQL** (también en docker) · SQLite solo en local y tests: las queries y migraciones
+  tienen que funcionar en ambos (ojo con SQL crudo, `ilike`, tipos JSON y enums) · Redis (cache, sesión y colas en prod)
 - Horizon (colas) · Reverb + laravel-echo/pusher-js (tiempo real) · SSR de Inertia (`resources/js/ssr.js`)
 - Auth: Breeze (Vue). Tests con Pest.
 
