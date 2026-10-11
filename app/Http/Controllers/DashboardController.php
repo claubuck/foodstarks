@@ -18,6 +18,8 @@ class DashboardController extends Controller
             return Inertia::render('Dashboard', [
                 'stats' => ['sales_today' => 0, 'tables_occupied' => 0, 'tables_total' => 0, 'orders_active' => 0],
                 'mesas' => [],
+                'pedidos_sin_mesa' => [],
+                'branch_id' => null,
             ]);
         }
 
@@ -37,6 +39,7 @@ class DashboardController extends Controller
                 ->where('table_id', $table->id)
                 ->whereIn('status', ['pending', 'in_progress'])
                 ->with(['orderDetails.product'])
+                ->latest('id')
                 ->first();
 
             return [
@@ -59,6 +62,27 @@ class DashboardController extends Controller
 
         $tablesOccupied = $mesas->where('status', 'occupied')->count();
 
+        // Pedidos activos sin mesa (para llevar, delivery, etc.)
+        $pedidosSinMesa = Order::where('branch_id', $branchId)
+            ->whereNull('table_id')
+            ->whereIn('status', ['pending', 'in_progress'])
+            ->with(['orderDetails.product'])
+            ->latest('id')
+            ->get()
+            ->map(fn ($order) => [
+                'id' => $order->id,
+                'status' => $order->status,
+                'type' => $order->type ?? 'takeaway',
+                'total_amount' => $order->total_amount,
+                'items' => $order->orderDetails->map(fn ($d) => [
+                    'product_name' => $d->product?->name,
+                    'quantity' => $d->quantity,
+                    'unit_price' => $d->unit_price,
+                ]),
+            ])
+            ->values()
+            ->all();
+
         $stats = [
             'sales_today' => round($salesToday, 2),
             'tables_occupied' => $tablesOccupied,
@@ -69,6 +93,8 @@ class DashboardController extends Controller
         return Inertia::render('Dashboard', [
             'stats' => $stats,
             'mesas' => $mesas,
+            'pedidos_sin_mesa' => $pedidosSinMesa,
+            'branch_id' => $branchId,
         ]);
     }
 }

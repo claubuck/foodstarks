@@ -1,40 +1,47 @@
 #!/bin/sh
 set -e
 
-# Esperar a que PostgreSQL esté listo (usando PHP para no depender de nc/pg_isready)
-if [ -n "$DB_HOST" ] && [ "$DB_CONNECTION" = "pgsql" ]; then
-  echo "Esperando a PostgreSQL en $DB_HOST:${DB_PORT:-5432}..."
-  php -r "
-    \$host = getenv('DB_HOST');
-    \$port = getenv('DB_PORT') ?: '5432';
-    \$dbname = getenv('DB_DATABASE') ?: 'postgres';
-    \$max = 60;
-    \$i = 0;
-    while (\$i < \$max) {
-      try {
-        \$pdo = new PDO(
-          \"pgsql:host=\$host;port=\$port;dbname=\$dbname\",
-          getenv('DB_USERNAME') ?: 'postgres',
-          getenv('DB_PASSWORD') ?: ''
-        );
-        echo \"PostgreSQL listo.\n\";
-        exit(0);
-      } catch (Throwable \$e) {
-        \$i++;
-        if (\$i >= \$max) { echo \"Timeout esperando PostgreSQL.\n\"; exit(1); }
-        sleep(1);
-      }
-    }
-  "
+# Procesos paralelos del servidor web (supervisord.conf lo lee del entorno)
+export WEB_WORKERS="${WEB_WORKERS:-4}"
+
+# Generar APP_KEY si no existe (primera ejecución)
+if [ -z "${APP_KEY}" ] || [ "${APP_KEY}" = "base64:" ]; then
+  echo "AVISO: APP_KEY vacía; se genera una temporal (defínela en Dokploy para que persista)."
+  export APP_KEY="base64:$(head -c 32 /dev/urandom | base64)"
 fi
 
-# Ejecutar migraciones si se indica
-if [ "$RUN_MIGRATE" = "true" ]; then
-  php artisan migrate --force --no-interaction || true
+# Esperar a que PostgreSQL esté listo
+if [ -n "${DB_HOST}" ] && [ "${DB_CONNECTION:-pgsql}" = "pgsql" ]; then
+  export WAIT_DSN="pgsql:host=${DB_HOST};port=${DB_PORT:-5432};dbname=${DB_DATABASE}"
+  export WAIT_USER="${DB_USERNAME}"
+  export WAIT_PASS="${DB_PASSWORD}"
+  until php -r 'try { new PDO(getenv("WAIT_DSN"), getenv("WAIT_USER"), getenv("WAIT_PASS")); exit(0); } catch (Throwable $e) { exit(1); }' 2>/dev/null; do
+    echo "Esperando PostgreSQL..."
+    sleep 2
+  done
+  unset WAIT_DSN WAIT_USER WAIT_PASS
 fi
 
-# Limpiar cachés para que se use manifest de Vite y config/URL actual (evita assets por http tras proxy HTTPS)
-php artisan config:clear
-php artisan view:clear
+# Carpetas de runtime (el .dockerignore excluye su contenido y el volumen
+# de storage/app/public puede montarse vacío)
+mkdir -p storage/app/public storage/logs \
+  storage/framework/cache/data storage/framework/sessions storage/framework/views \
+  bootstrap/cache
+
+# Symlink de storage público (public/storage -> storage/app/public).
+# Idempotente: --force recrea el link si hace falta.
+php artisan storage:link --force || true
+
+# Migraciones si se indica
+if [ "${RUN_MIGRATE}" = "true" ]; then
+  php artisan migrate --force --no-interaction
+fi
+
+# Cachear configuración, rutas, vistas y eventos con las variables del entorno
+php artisan optimize
+
+# Los comandos anteriores corren como root: devolver storage y cache a www-data
+# (incluye el volumen de storage/app/public montado por Dokploy).
+chown -R www-data:www-data storage bootstrap/cache
 
 exec "$@"

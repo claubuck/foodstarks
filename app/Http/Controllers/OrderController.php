@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\OrderUpdated;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\UpdateOrderRequest;
 use App\Models\Order;
@@ -9,8 +10,10 @@ use App\Models\OrderDetail;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Table;
+use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -114,6 +117,8 @@ class OrderController extends Controller
                     $totalAdded += $item['price'] * $item['quantity'];
                 }
                 $order->increment('total_amount', $totalAdded);
+                $this->broadcastOrderUpdated($branchId);
+
                 return redirect()->route('sales.create', ['table_id' => $order->table_id, 'order_id' => $order->id])
                     ->with('success', 'Ítems agregados al pedido.');
             }
@@ -148,6 +153,8 @@ class OrderController extends Controller
         if ($tableId) {
             Table::where('id', $tableId)->where('branch_id', $branchId)->update(['status' => 'occupied']);
         }
+
+        $this->broadcastOrderUpdated($branchId);
 
         return redirect()->route('orders.index')->with('success', 'Pedido creado correctamente.');
     }
@@ -189,6 +196,8 @@ class OrderController extends Controller
             }
         }
 
+        $this->broadcastOrderUpdated($order->branch_id);
+
         return redirect()->route('orders.show', $order)->with('success', 'Pedido actualizado.');
     }
 
@@ -204,6 +213,8 @@ class OrderController extends Controller
             Table::where('id', $order->table_id)->update(['status' => 'available']);
         }
         $order->delete();
+
+        $this->broadcastOrderUpdated($order->branch_id);
 
         return redirect()->route('orders.index')->with('success', 'Pedido eliminado.');
     }
@@ -221,6 +232,24 @@ class OrderController extends Controller
             Table::where('id', $order->table_id)->where('branch_id', $branchId)->update(['status' => 'available']);
         }
 
+        $this->broadcastOrderUpdated($branchId);
+
         return redirect()->route('dashboard')->with('success', 'Pedido cobrado.');
+    }
+
+    /**
+     * Envía el evento OrderUpdated para actualizar el dashboard en tiempo real.
+     * Si Reverb no está disponible, se registra el error pero la petición no falla.
+     */
+    private function broadcastOrderUpdated(string $branchId): void
+    {
+        try {
+            OrderUpdated::dispatch($branchId);
+        } catch (BroadcastException $e) {
+            Log::warning('Broadcast OrderUpdated falló (Reverb puede no estar disponible)', [
+                'branch_id' => $branchId,
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
 }

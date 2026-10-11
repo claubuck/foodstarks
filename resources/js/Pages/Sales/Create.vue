@@ -122,7 +122,7 @@ const confirmarPedido = () => {
             @click="agregarProducto(producto)"
           >
             <img
-              :src="producto.image_url || '/images/noimage.jpg'"
+              :src="producto.image_url || '/images/noimage.jfif'"
               :alt="producto.name"
               class="h-32 w-full rounded-t-xl object-cover"
             />

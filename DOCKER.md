@@ -149,3 +149,48 @@ exit
 ```
 
 O compilar en tu máquina (con Node instalado) y los archivos generados en `public/build` se usarán al montar el proyecto.
+
+## Deploy en producción (GitHub Actions → GHCR → Dokploy)
+
+Mismo esquema que `noticlub`. `.github/workflows/ci-cd.yml`:
+
+1. **build** — construye el `Dockerfile` de la raíz. En los PR solo valida que compile; en push a `main`
+   publica `ghcr.io/claubuck/foodstarks` con tags `latest` y el SHA.
+2. **deploy** — POST al webhook de Dokploy (secret de GitHub **`DOKPLOY_DEPLOY_WEBHOOK`**).
+
+> `docker-compose.yml` es solo para desarrollo y usa `docker/Dockerfile.dev`.
+
+La imagen corre **un solo contenedor** con `supervisord` (`docker/supervisord.conf`): servidor web
+(`artisan serve`, puerto **8000**), **SSR** de Inertia, **Horizon** (colas en Redis), **Reverb**
+(websockets, puerto **8080**) y **scheduler**. `docker/entrypoint.sh` espera a PostgreSQL, crea el link
+de storage, migra si `RUN_MIGRATE=true` y ejecuta `artisan optimize`.
+
+El bundle SSR se compila autocontenido (`ssr.noExternal` en `vite.config.js`): en producción solo hace
+falta el binario de Node. La key de Reverb se pasa al navegador en runtime (`app.blade.php`), así que no
+hacen falta variables `VITE_*` al compilar.
+
+### Configuración en Dokploy
+
+- **Aplicación**: provider *Docker*, imagen `ghcr.io/claubuck/foodstarks:latest` (si el paquete de GHCR es
+  privado, cargá credenciales del registry con un token con `read:packages`).
+- **Bases**: crear un PostgreSQL y un Redis en el mismo proyecto de Dokploy y usar sus hosts internos.
+- **Dominios**: `app.tudominio.com` → puerto `8000`; `ws.tudominio.com` → puerto `8080` (Reverb), ambos con HTTPS.
+- **Volumen persistente**: `/var/www/html/storage/app/public`.
+- **Webhook**: copiar la URL de *Deployments → Webhook* y cargarla en GitHub como `DOKPLOY_DEPLOY_WEBHOOK`.
+
+| Variable | Valor |
+| --- | --- |
+| `APP_KEY` | Obligatoria y fija (`php artisan key:generate --show`) |
+| `APP_URL` | `https://app.tudominio.com` |
+| `APP_ENV` / `APP_DEBUG` | `production` / `false` |
+| `DB_CONNECTION` / `DB_HOST` / `DB_PORT` / `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | `pgsql` + datos del PostgreSQL de Dokploy |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | Datos del Redis de Dokploy |
+| `QUEUE_CONNECTION` / `CACHE_STORE` / `SESSION_DRIVER` | `redis` (Horizon necesita colas en Redis) |
+| `BROADCAST_CONNECTION` | `reverb` |
+| `REVERB_APP_ID` / `REVERB_APP_KEY` / `REVERB_APP_SECRET` | Valores propios (no usar los de desarrollo) |
+| `REVERB_HOST` / `REVERB_PORT` / `REVERB_SCHEME` | `127.0.0.1` / `8080` / `http` (Laravel → Reverb dentro del contenedor) |
+| `REVERB_PUBLIC_HOST` / `REVERB_PUBLIC_PORT` / `REVERB_PUBLIC_SCHEME` | `ws.tudominio.com` / `443` / `https` (navegador → Reverb) |
+| `REVERB_ALLOWED_ORIGINS` | `app.tudominio.com` (opcional, por defecto `*`) |
+| `RUN_MIGRATE` | `true` para ejecutar `migrate --force` en cada arranque |
+| `WEB_WORKERS` | Procesos del servidor web (por defecto `4`) |
+| `MP_ACCESS_TOKEN` / `MP_PUBLIC_KEY` | Mercado Pago |

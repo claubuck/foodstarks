@@ -1,18 +1,52 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
 import TableModal from '@/Components/TableModal.vue'
-import { Head, Link } from '@inertiajs/vue3'
+import { Head, Link, router } from '@inertiajs/vue3'
 import {
   CurrencyDollarIcon,
   ClipboardDocumentListIcon,
   TableCellsIcon,
   PlusIcon,
 } from '@heroicons/vue/24/outline'
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   stats: Object,
   mesas: Array,
+  pedidos_sin_mesa: Array,
+  branch_id: String,
+})
+
+let channel = null
+let pollTimer = null
+const POLL_INTERVAL_MS = 15000 // fallback: refrescar cada 15s si no hay WebSocket
+
+function refreshDashboard() {
+  router.reload({ only: ['stats', 'mesas', 'pedidos_sin_mesa'], preserveState: true })
+}
+
+onMounted(() => {
+  // WebSocket (Reverb): actualización en tiempo real
+  if (props.branch_id && window.Echo) {
+    try {
+      channel = window.Echo.private(`branch.${props.branch_id}`)
+        .listen('.order.updated', () => {
+          refreshDashboard()
+        })
+    } catch (e) {
+      console.warn('[Dashboard] Echo no pudo suscribirse al canal:', e)
+    }
+  }
+
+  // Fallback: polling cada 15s para que las mesas se actualicen aunque Reverb falle
+  pollTimer = setInterval(refreshDashboard, POLL_INTERVAL_MS)
+})
+
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
+  if (channel) {
+    window.Echo?.leave(`branch.${props.branch_id}`)
+  }
 })
 
 const statsList = computed(() => [
@@ -40,6 +74,7 @@ const statsList = computed(() => [
 ])
 
 const mesas = computed(() => props.mesas ?? [])
+const pedidosSinMesa = computed(() => props.pedidos_sin_mesa ?? [])
 const showModal = ref(false)
 const mesaSeleccionada = ref(null)
 
@@ -115,6 +150,30 @@ function cerrarModal() {
               <p class="mt-1 font-medium">Total: ${{ Number(mesa.current_order.total_amount).toFixed(2) }}</p>
             </div>
             <div v-else class="italic text-gray-500 text-sm">Disponible</div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="pedidosSinMesa.length > 0" class="mt-8 rounded-2xl bg-white p-6 shadow-md">
+        <h3 class="mb-6 text-xl font-semibold text-gray-800">Pedidos sin mesa (para llevar / delivery)</h3>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div
+            v-for="pedido in pedidosSinMesa"
+            :key="pedido.id"
+            class="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm"
+          >
+            <div class="mb-2 flex items-center justify-between">
+              <span class="font-semibold text-gray-800">Pedido #{{ pedido.id }}</span>
+              <span class="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-medium text-amber-800">
+                {{ pedido.type === 'delivery' ? 'Delivery' : 'Para llevar' }}
+              </span>
+            </div>
+            <ul class="ml-4 list-disc text-sm text-gray-700">
+              <li v-for="(item, i) in pedido.items" :key="i">
+                {{ item.quantity }} x {{ item.product_name }}
+              </li>
+            </ul>
+            <p class="mt-2 font-medium text-gray-800">Total: ${{ Number(pedido.total_amount).toFixed(2) }}</p>
           </div>
         </div>
       </div>

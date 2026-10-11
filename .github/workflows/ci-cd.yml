@@ -1,0 +1,72 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# TODO: sumar un job "test" (pint --test + php artisan test) como en noticlub
+# cuando la suite pase: hoy los tests de Breeze fallan porque users.restaurant_id
+# es obligatorio y Pint marca varios archivos.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Login a GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # En los PR solo se construye (valida Dockerfile, composer y Vite);
+      # en push a main además se publica la imagen.
+      - name: Build y push de la imagen
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      # El secret va por env y no interpolado dentro del comando: así no queda
+      # en la línea de órdenes y, cuando falta, se puede avisar antes de llamar
+      # a curl en vez de fallar con "Malformed input to a URL function".
+      - name: Disparar deploy en Dokploy
+        env:
+          WEBHOOK: ${{ secrets.DOKPLOY_DEPLOY_WEBHOOK }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "::error::Falta el secret DOKPLOY_DEPLOY_WEBHOOK."
+            echo "Cargalo en Settings > Secrets and variables > Actions con la URL"
+            echo "del webhook de deploy de la aplicacion en Dokploy."
+            exit 1
+          fi
+
+          code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            "$WEBHOOK")
+
+          echo "HTTP $code"
+          echo "Respuesta: $(cat /tmp/resp.txt)"
+          test "$code" -ge 200 -a "$code" -lt 300

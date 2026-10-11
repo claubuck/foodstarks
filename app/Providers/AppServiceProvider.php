@@ -5,6 +5,7 @@ namespace App\Providers;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Horizon\Horizon;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -29,5 +30,14 @@ class AppServiceProvider extends ServiceProvider
         }
 
         Vite::prefetch(concurrency: 3);
+
+        // Quién puede ver el dashboard de Horizon
+        Horizon::auth(function ($request) {
+            if (app()->environment('local')) {
+                return true;
+            }
+
+            return $request->user() && in_array($request->user()->role, ['owner', 'admin']);
+        });
     }
 }

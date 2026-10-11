@@ -18,4 +18,9 @@ export default defineConfig({
             },
         }),
     ],
+    ssr: {
+        // Empaqueta todas las dependencias en bootstrap/ssr para que la imagen
+        // de producción corra el SSR solo con el binario de Node (sin node_modules).
+        noExternal: true,
+    },
 });

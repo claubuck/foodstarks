@@ -77,7 +77,7 @@ watch(
           >
             <div class="relative">
               <img
-                :src="product.image_url || '/images/noimage.jpg'"
+                :src="product.image_url || '/images/noimage.jfif'"
                 alt="Imagen del producto"
                 class="w-full h-48 object-cover"
               />

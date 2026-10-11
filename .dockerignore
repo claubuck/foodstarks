@@ -1,25 +1,54 @@
-.git
-.gitignore
-.env
-.env.*
-!.env.example
+# Dependencias instaladas en el host (se reinstalan dentro del image)
 node_modules
 vendor
+
+# Outputs de build (se regeneran)
+public/build
+public/hot
+public/storage
+bootstrap/ssr
+bootstrap/cache/*.php
+
+# Entornos locales y secretos
+.env
+.env.backup
+.env.production
+.env.local
+auth.json
+
+# Git y editores / agentes
+.git
+.github
+.gitignore
+.idea
+.vscode
+.zed
+.cursor
+.claude
+.fleet
+.nova
+.phpactor.json
+.phpunit.cache
+.phpunit.result.cache
+
+# Docker local
+docker-compose*.yml
+
+# Storage runtime (se monta como volumen en prod o se inicializa vacio)
 storage/logs/*
 storage/framework/cache/*
 storage/framework/sessions/*
 storage/framework/views/*
-bootstrap/cache/*
-.DS_Store
-Thumbs.db
-*.md
-docker-compose*.yml
-Dockerfile*
-.docker
+storage/app/public/*
+storage/pail
+
+# Tests y docs
 tests
 phpunit.xml
-.phpunit.result.cache
-.idea
-.vscode
+*.md
+docs
+
+# Sistema
+.DS_Store
+Thumbs.db
 *.log
-npm-debug.log*

@@ -23,6 +23,62 @@ Route::get('/', function () {
     ]);
 });
 
+// Prueba de cola (despacha un job; ver en Horizon o en la tabla jobs)
+Route::get('/queue-test', function () {
+    \App\Jobs\TestQueueJob::dispatch('¡Hola desde la cola!');
+    return response()->json([
+        'message' => 'Job despachado. Revisá Horizon en /horizon o la tabla jobs.',
+    ]);
+})->name('queue.test');
+
+// Diagnóstico: conexión de colas y Redis (para ver si Horizon puede procesar)
+Route::get('/queue-diagnostic', function () {
+    $connection = config('queue.default');
+    $redisHost = config('database.redis.default.host');
+    $redisPort = config('database.redis.default.port');
+    $redisOk = false;
+    $redisError = null;
+    try {
+        \Illuminate\Support\Facades\Redis::connection()->ping();
+        $redisOk = true;
+    } catch (Throwable $e) {
+        $redisError = $e->getMessage();
+    }
+    return response()->json([
+        'queue_connection' => $connection,
+        'redis_host' => $redisHost,
+        'redis_port' => $redisPort,
+        'redis_reachable' => $redisOk,
+        'redis_error' => $redisError,
+        'hint' => $connection === 'redis' && $redisOk
+            ? 'Todo OK: los jobs van a Redis y Horizon puede procesarlos.'
+            : ($connection !== 'redis'
+                ? 'Cambiá QUEUE_CONNECTION a redis y reiniciá app + horizon.'
+                : 'Redis no responde; revisá que el contenedor redis esté arriba.'),
+    ]);
+})->name('queue.diagnostic');
+
+// Prueba de conexión a Laravel Reverb (WebSockets)
+Route::get('/reverb-test', function () {
+    return Inertia::render('ReverbTest', [
+        'reverbHost' => config('broadcasting.connections.reverb.options.host'),
+        'reverbPort' => config('broadcasting.connections.reverb.options.port'),
+        'reverbScheme' => config('broadcasting.connections.reverb.options.scheme'),
+    ]);
+})->name('reverb.test');
+
+// Diagnóstico: qué usa la app para enviar a Reverb (app_id, host, etc.)
+Route::get('/reverb-diagnostic', function () {
+    $conn = config('broadcasting.connections.reverb');
+    return response()->json([
+        'app_id' => $conn['app_id'] ?? null,
+        'key' => $conn['key'] ?? null,
+        'host' => $conn['options']['host'] ?? null,
+        'port' => $conn['options']['port'] ?? null,
+        'hint' => 'El app_id debe ser exactamente "foodstarks" y coincidir con config/reverb.php en el contenedor Reverb.',
+    ]);
+})->name('reverb.diagnostic');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/subscription/required', [SubscriptionController::class, 'required'])
         ->name('subscription.required');
@@ -33,6 +89,33 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/branch/switch', [BranchController::class, 'switch'])
                 ->name('branch.switch');
             Route::get('/dashboard', \App\Http\Controllers\DashboardController::class)->name('dashboard');
+
+            // Panel superadmin (solo owner/admin): Prueba tiempo real + Horizon
+            Route::get('/superadmin', \App\Http\Controllers\SuperadminDashboardController::class)->name('superadmin.dashboard');
+
+            // Prueba de tiempo real: ver estado Echo/Reverb y enviar evento order.updated
+            Route::get('/realtime-test', function () {
+                $branchId = request()->attributes->get('current_branch_id') ?? session('current_branch_id');
+                $reverb = config('broadcasting.connections.reverb');
+                return Inertia::render('RealtimeTest', [
+                    'branch_id' => $branchId,
+                    'reverbHost' => $reverb['public_host'] ?? $reverb['options']['host'] ?? 'localhost',
+                    'reverbPort' => $reverb['public_port'] ?? $reverb['options']['port'] ?? 8080,
+                    'reverbScheme' => $reverb['public_scheme'] ?? $reverb['options']['scheme'] ?? 'http',
+                ]);
+            })->name('realtime.test');
+            Route::post('/realtime-test/send', function () {
+                $branchId = request()->attributes->get('current_branch_id') ?? session('current_branch_id');
+                if (! $branchId) {
+                    return response()->json(['ok' => false, 'error' => 'No hay sucursal seleccionada.'], 400);
+                }
+                try {
+                    \App\Events\OrderUpdated::dispatch($branchId);
+                    return response()->json(['ok' => true]);
+                } catch (\Illuminate\Broadcasting\BroadcastException $e) {
+                    return response()->json(['ok' => false, 'error' => $e->getMessage()], 200);
+                }
+            })->name('realtime.send');
 
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
