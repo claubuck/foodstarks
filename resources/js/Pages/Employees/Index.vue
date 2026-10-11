@@ -87,7 +87,7 @@ const roleLabels = {
           Empleados
           <span v-if="max_users" class="ml-2 text-sm font-normal text-gray-500">({{ employees.length }} / {{ max_users }})</span>
         </span>
-        <PrimaryButton @click="abrirAlta">Agregar empleado</PrimaryButton>
+        <button type="button" class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2" @click="abrirAlta">Agregar empleado</button>
       </div>
     </template>
     <div class="space-y-4">

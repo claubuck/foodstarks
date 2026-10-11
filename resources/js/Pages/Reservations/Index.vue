@@ -22,7 +22,7 @@ watch([date, status], () => {
     <template #header>
       <div class="flex items-center justify-between">
         <span>Reservas</span>
-        <Link :href="route('reservations.create')" class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">Nueva reserva</Link>
+        <Link :href="route('reservations.create')" class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">Nueva reserva</Link>
       </div>
     </template>
     <div class="space-y-4">

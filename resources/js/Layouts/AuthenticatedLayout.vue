@@ -209,11 +209,9 @@ const navLinkClass = (isActive) =>
       <!-- Header -->
       <header class="bg-white shadow">
         <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-          <div class="flex items-center justify-between">
-            <h1 class="text-2xl font-bold text-gray-900">
-              <slot name="header" />
-            </h1>
-            <!-- Additional Header Content -->
+          <!-- w-full: el contenido del slot (título + acciones) usa todo el ancho -->
+          <div class="w-full text-xl font-semibold text-gray-900">
+            <slot name="header" />
           </div>
         </div>
       </header>

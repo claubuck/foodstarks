@@ -104,19 +104,19 @@ function cerrarModal() {
   <AuthenticatedLayout>
     <template #header>
       <div class="flex items-center justify-between">
-        <h2 class="text-3xl font-bold text-gray-900">Panel del Restaurante</h2>
+        <h2>Panel del Restaurante</h2>
         <div class="flex gap-2">
         <Link
           :href="route('sales.create')"
-          class="flex items-center gap-1 rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+          class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
         >
-          <PlusIcon class="h-5 w-5" /> Nuevo pedido
+          <PlusIcon class="h-4 w-4" /> Nuevo pedido
         </Link>
         <Link
           :href="route('tables.index')"
-          class="flex items-center gap-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+          class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
         >
-          <PlusIcon class="h-5 w-5" /> Mesas
+          Mesas
         </Link>
         </div>
       </div>

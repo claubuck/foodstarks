@@ -1,6 +1,5 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
-import PrimaryButton from '@/Components/PrimaryButton.vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 
 defineProps({
@@ -20,12 +19,10 @@ function destroy(id) {
     <template #header>
       <div class="flex items-center justify-between">
         <span>Sucursales</span>
-        <div class="flex gap-2">
+        <div class="flex items-center gap-4">
           <Link :href="route('restaurant.edit')" class="text-sm text-primary-600 hover:underline">Restaurante</Link>
           <Link :href="route('product-categories.index')" class="text-sm text-primary-600 hover:underline">Categorías</Link>
-          <Link :href="route('branches.create')">
-            <PrimaryButton>Nueva sucursal</PrimaryButton>
-          </Link>
+          <Link :href="route('branches.create')" class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">Nueva sucursal</Link>
         </div>
       </div>
     </template>

@@ -47,10 +47,10 @@ function asignar(r) {
   <AuthenticatedLayout>
     <template #header>
       <div class="flex items-center justify-between">
-        <h2 class="text-2xl font-bold text-gray-900">Panel de administración</h2>
+        <h2>Panel de administración</h2>
         <Link
           :href="route('dashboard')"
-          class="rounded bg-gray-200 px-4 py-2 text-gray-800 hover:bg-gray-300"
+          class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
         >
           Volver al Dashboard
         </Link>

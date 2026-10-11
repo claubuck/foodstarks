@@ -1,6 +1,5 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
-import PrimaryButton from '@/Components/PrimaryButton.vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 
 defineProps({
@@ -20,9 +19,7 @@ function destroy(id) {
     <template #header>
       <div class="flex items-center justify-between">
         <span>Mesas</span>
-        <Link :href="route('tables.create')">
-          <PrimaryButton>Agregar mesa</PrimaryButton>
-        </Link>
+        <Link :href="route('tables.create')" class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">Agregar mesa</Link>
       </div>
     </template>
     <div class="space-y-4">
