@@ -45,4 +45,24 @@ class Order extends Model
     {
         return $this->belongsTo(Branch::class);
     }
+
+    public const ACTIVE_STATUSES = ['pending', 'in_progress'];
+
+    public function scopeActive($query)
+    {
+        return $query->whereIn('status', self::ACTIVE_STATUSES);
+    }
+
+    public function isActive(): bool
+    {
+        return in_array($this->status, self::ACTIVE_STATUSES, true);
+    }
+
+    /** Recalcula total_amount a partir de los detalles. */
+    public function recalculateTotal(): void
+    {
+        $this->update([
+            'total_amount' => $this->orderDetails()->get()->sum(fn ($d) => $d->unit_price * $d->quantity),
+        ]);
+    }
 }

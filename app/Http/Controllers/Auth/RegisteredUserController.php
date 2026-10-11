@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Restaurant;
-use App\Models\Subscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use Database\Seeders\SubscriptionPlanSeeder;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,7 +31,7 @@ class RegisteredUserController extends Controller
             'restaurant_name' => 'required|string|max:255',
             'restaurant_address' => 'required|string|max:500',
             'restaurant_phone' => 'required|string|max:50',
-            'restaurant_email' => 'required|string|lowercase|email|max:255',
+            'restaurant_email' => 'required|string|lowercase|email|max:255|unique:restaurants,email',
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
@@ -62,16 +62,12 @@ class RegisteredUserController extends Controller
                 'role' => 'owner',
             ]);
 
-            $plan = SubscriptionPlan::where('slug', 'free')->where('is_active', true)->first();
-            if ($plan) {
-                Subscription::create([
-                    'restaurant_id' => $restaurant->id,
-                    'plan_id' => $plan->id,
-                    'status' => 'active',
-                    'current_period_start' => now(),
-                    'current_period_end' => null, // Free: ilimitado en tiempo; luego limitaremos módulos/funciones
-                ]);
+            // Los planes los crea el seeder (idempotente); si nunca se corrió, se crean acá.
+            if (! SubscriptionPlan::where('slug', 'free')->exists()) {
+                app(SubscriptionPlanSeeder::class)->run();
             }
+            // Free: sin vencimiento
+            $restaurant->assignPlan(SubscriptionPlan::where('slug', 'free')->firstOrFail());
 
             return $user;
         });

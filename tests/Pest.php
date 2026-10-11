@@ -41,7 +41,23 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Restaurante listo para operar: sucursal activa + plan (Free por defecto) + usuario con el rol pedido.
+ * Devuelve [user, branch].
+ */
+function restaurantUser(string $role = 'owner', string $plan = 'free'): array
 {
-    // ..
+    (new Database\Seeders\SubscriptionPlanSeeder)->run();
+
+    $restaurant = App\Models\Restaurant::factory()->create();
+    $branch = App\Models\Branch::create([
+        'restaurant_id' => $restaurant->id,
+        'name' => 'Casa matriz',
+        'is_active' => true,
+    ]);
+    $restaurant->assignPlan(App\Models\SubscriptionPlan::where('slug', $plan)->firstOrFail());
+
+    $user = App\Models\User::factory()->create(['restaurant_id' => $restaurant->id, 'role' => $role]);
+
+    return [$user, $branch];
 }

@@ -44,6 +44,7 @@ class HandleInertiaRequests extends Middleware
                 'restaurant' => $restaurant?->only(['id', 'name']),
                 'branches' => $branches,
                 'current_branch_id' => $currentBranchId,
+                'is_superadmin' => (bool) $user?->can('superadmin'),
             ],
             'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),

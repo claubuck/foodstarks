@@ -51,6 +51,17 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
+        // El dueño no puede borrarse: dejaría el restaurante sin responsable
+        if ($user->role === 'owner') {
+            return Redirect::route('profile.edit')->with('error', 'El dueño del restaurante no puede eliminar su cuenta.');
+        }
+
+        // orders.user_id hace cascade: los pedidos pasan al dueño para no perder ventas
+        $ownerId = $user->restaurant?->users()->where('role', 'owner')->value('id');
+        if ($ownerId) {
+            $user->getConnection()->table('orders')->where('user_id', $user->id)->update(['user_id' => $ownerId]);
+        }
+
         Auth::logout();
 
         $user->delete();

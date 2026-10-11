@@ -14,13 +14,16 @@ const date = ref(props.filters?.date || "");
 watch([status, date], () => {
   router.get(route("orders.index"), { status: status.value || undefined, date: date.value || undefined }, { preserveState: true });
 });
+
+const statusLabels = { pending: "Pendiente", in_progress: "En preparación", completed: "Completado", cancelled: "Cancelado" };
+const typeLabels = { dine_in: "En el local", takeaway: "Para llevar", delivery: "Delivery" };
 </script>
 
 <template>
-  <Head title="Órdenes" />
+  <Head title="Pedidos" />
   <AuthenticatedLayout>
     <template #header>
-      <span>Órdenes</span>
+      <span>Pedidos</span>
     </template>
     <div class="space-y-4">
       <div class="flex flex-wrap items-center gap-4">
@@ -32,7 +35,7 @@ watch([status, date], () => {
         <select v-model="status" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
           <option value="">Todos los estados</option>
           <option value="pending">Pendiente</option>
-          <option value="in_progress">En progreso</option>
+          <option value="in_progress">En preparación</option>
           <option value="completed">Completado</option>
           <option value="cancelled">Cancelado</option>
         </select>
@@ -68,10 +71,10 @@ watch([status, date], () => {
                     'bg-red-100 text-red-800': order.status === 'cancelled',
                   }"
                 >
-                  {{ order.status }}
+                  {{ statusLabels[order.status] || order.status }}
                 </span>
               </td>
-              <td class="px-4 py-3 text-sm text-gray-700">{{ order.type }}</td>
+              <td class="px-4 py-3 text-sm text-gray-700">{{ typeLabels[order.type] || order.type }}</td>
               <td class="whitespace-nowrap px-4 py-3 text-right text-sm">
                 <Link :href="route('orders.show', order.id)" class="text-blue-600 hover:underline">Ver</Link>
               </td>

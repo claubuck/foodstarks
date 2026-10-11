@@ -75,6 +75,30 @@ class Restaurant extends Model
 
     public function activeSubscription()
     {
-        return $this->hasOne(Subscription::class)->whereIn('status', ['trial', 'active'])->latest();
+        return $this->hasOne(Subscription::class)->current()->latest('id');
+    }
+
+    /**
+     * Reemplaza la suscripción vigente por una nueva del plan indicado.
+     * $days null = sin vencimiento (lo normal para el plan Free).
+     */
+    public function assignPlan(SubscriptionPlan $plan, ?int $days = null): Subscription
+    {
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($plan, $days) {
+            $this->subscriptions()->current()->update(['status' => 'cancelled']);
+
+            return $this->subscriptions()->create([
+                'plan_id' => $plan->id,
+                'status' => 'active',
+                'current_period_start' => now(),
+                'current_period_end' => $days ? now()->addDays($days) : null,
+            ]);
+        });
+    }
+
+    /** Plan de la suscripción vigente (null si no hay). */
+    public function currentPlan(): ?SubscriptionPlan
+    {
+        return $this->activeSubscription()->with('plan')->first()?->plan;
     }
 }

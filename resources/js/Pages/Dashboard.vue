@@ -11,6 +11,7 @@ import {
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
+  setup: Object,
   stats: Object,
   mesas: Array,
   pedidos_sin_mesa: Array,
@@ -77,15 +78,24 @@ const mesas = computed(() => props.mesas ?? [])
 const pedidosSinMesa = computed(() => props.pedidos_sin_mesa ?? [])
 const showModal = ref(false)
 const mesaSeleccionada = ref(null)
+const pedidoSeleccionado = ref(null)
 
 function abrirModal(mesa) {
   mesaSeleccionada.value = mesa
+  pedidoSeleccionado.value = null
+  showModal.value = true
+}
+
+function abrirPedido(pedido) {
+  mesaSeleccionada.value = null
+  pedidoSeleccionado.value = pedido
   showModal.value = true
 }
 
 function cerrarModal() {
   showModal.value = false
   mesaSeleccionada.value = null
+  pedidoSeleccionado.value = null
 }
 </script>
 
@@ -95,16 +105,49 @@ function cerrarModal() {
     <template #header>
       <div class="flex items-center justify-between">
         <h2 class="text-3xl font-bold text-gray-900">Panel del Restaurante</h2>
+        <div class="flex gap-2">
+        <Link
+          :href="route('sales.create')"
+          class="flex items-center gap-1 rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+        >
+          <PlusIcon class="h-5 w-5" /> Nuevo pedido
+        </Link>
         <Link
           :href="route('tables.index')"
           class="flex items-center gap-1 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
         >
           <PlusIcon class="h-5 w-5" /> Mesas
         </Link>
+        </div>
       </div>
     </template>
 
     <div class="min-h-screen px-4 py-8 md:px-8">
+      <div
+        v-if="setup && !(setup.categories && setup.products && setup.tables)"
+        class="mb-8 rounded-2xl border border-blue-200 bg-blue-50 p-6"
+      >
+        <h3 class="mb-3 text-lg font-semibold text-blue-900">Primeros pasos</h3>
+        <ol class="space-y-2 text-sm text-blue-900">
+          <li>
+            <span>{{ setup.categories ? '✅' : '⬜' }}</span>
+            Crear las categorías del menú
+            <Link v-if="!setup.categories" :href="route('product-categories.index')" class="ml-2 font-medium underline">Ir a categorías</Link>
+          </li>
+          <li>
+            <span>{{ setup.products ? '✅' : '⬜' }}</span>
+            Cargar los productos con su precio
+            <Link v-if="!setup.products" :href="route('products.index')" class="ml-2 font-medium underline">Ir a productos</Link>
+          </li>
+          <li>
+            <span>{{ setup.tables ? '✅' : '⬜' }}</span>
+            Crear las mesas del salón
+            <Link v-if="!setup.tables" :href="route('tables.create')" class="ml-2 font-medium underline">Crear mesa</Link>
+          </li>
+        </ol>
+        <p class="mt-3 text-xs text-blue-800">Las categorías las administran el dueño y los encargados.</p>
+      </div>
+
       <div class="mb-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <div
           v-for="stat in statsList"
@@ -160,7 +203,8 @@ function cerrarModal() {
           <div
             v-for="pedido in pedidosSinMesa"
             :key="pedido.id"
-            class="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm"
+            class="cursor-pointer rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm transition hover:shadow-md"
+            @click="abrirPedido(pedido)"
           >
             <div class="mb-2 flex items-center justify-between">
               <span class="font-semibold text-gray-800">Pedido #{{ pedido.id }}</span>
@@ -178,7 +222,7 @@ function cerrarModal() {
         </div>
       </div>
 
-      <TableModal :show="showModal" :mesa="mesaSeleccionada" @close="cerrarModal" />
+      <TableModal :show="showModal" :mesa="mesaSeleccionada" :pedido="pedidoSeleccionado" @close="cerrarModal" />
     </div>
   </AuthenticatedLayout>
 </template>

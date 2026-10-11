@@ -153,7 +153,7 @@ const navLinkClass = (isActive) =>
           </Link>
 
           <Link
-            v-if="['owner', 'admin'].includes($page.props.auth.user?.role)"
+            v-if="$page.props.auth.is_superadmin"
             :href="route('superadmin.dashboard')"
             :class="navLinkClass(route().current('superadmin.dashboard'))"
           >

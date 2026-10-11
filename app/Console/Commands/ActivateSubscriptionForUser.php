@@ -2,16 +2,18 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Subscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
 use Illuminate\Console\Command;
 
 class ActivateSubscriptionForUser extends Command
 {
-    protected $signature = 'subscription:activate {email : Email del usuario (ej: admin@gmail.com)} {--days=30 : Días de vigencia de la suscripción}';
+    protected $signature = 'subscription:activate
+        {email : Email de un usuario del restaurante}
+        {--plan=basico : Slug del plan (free, basico, profesional, empresa)}
+        {--days=30 : Días de vigencia (0 = sin vencimiento)}';
 
-    protected $description = 'Activa una suscripción de prueba para el restaurante del usuario indicado (para pruebas).';
+    protected $description = 'Asigna un plan al restaurante del usuario indicado (reemplaza la suscripción vigente).';
 
     public function handle(): int
     {
@@ -22,46 +24,29 @@ class ActivateSubscriptionForUser extends Command
 
         if (! $user) {
             $this->error("No se encontró ningún usuario con email: {$email}");
+
             return self::FAILURE;
         }
 
         if (! $user->restaurant_id) {
             $this->error("El usuario {$email} no tiene restaurante asociado.");
+
             return self::FAILURE;
         }
 
-        $restaurant = $user->restaurant;
-        $plan = SubscriptionPlan::where('is_active', true)->first();
+        $plan = SubscriptionPlan::where('slug', $this->option('plan'))->where('is_active', true)->first();
 
         if (! $plan) {
-            $this->error('No hay ningún plan de suscripción activo. Ejecuta: php artisan db:seed --class=SubscriptionPlanSeeder');
+            $this->error("No existe el plan activo '{$this->option('plan')}'. Ejecuta: php artisan db:seed --class=SubscriptionPlanSeeder");
+
             return self::FAILURE;
         }
 
-        $existing = $restaurant->subscriptions()
-            ->whereIn('status', ['trial', 'active'])
-            ->where('current_period_end', '>=', now())
-            ->latest()
-            ->first();
+        $subscription = $user->restaurant->assignPlan($plan, $days > 0 ? $days : null);
 
-        if ($existing) {
-            $existing->update([
-                'current_period_end' => now()->addDays($days),
-                'status' => 'active',
-            ]);
-            $this->info("Suscripción ya existente actualizada. Vigente hasta: {$existing->current_period_end->toDateString()}");
-            return self::SUCCESS;
-        }
+        $this->info("Plan {$plan->name} activado para el restaurante de {$email}. Vence: "
+            .($subscription->current_period_end?->toDateString() ?? 'nunca'));
 
-        Subscription::create([
-            'restaurant_id' => $restaurant->id,
-            'plan_id' => $plan->id,
-            'status' => 'active',
-            'current_period_start' => now(),
-            'current_period_end' => now()->addDays($days),
-        ]);
-
-        $this->info("Suscripción activada para el restaurante de {$email}. Vigente por {$days} días.");
         return self::SUCCESS;
     }
 }

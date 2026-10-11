@@ -132,6 +132,9 @@ class ProductController extends Controller
             $file = $request->file('image_url');
             $imagePath = $file->store("Restaurants/{$product->restaurant_id}/Products", 'public');
             $validated['image_url'] = asset("storage/{$imagePath}");
+        } else {
+            // Sin archivo nuevo se conserva la imagen actual
+            unset($validated['image_url']);
         }
 
         $product->update($validated);

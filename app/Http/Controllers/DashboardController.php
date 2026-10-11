@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\Table;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -50,6 +52,7 @@ class DashboardController extends Controller
                 'current_order' => $currentOrder ? [
                     'id' => $currentOrder->id,
                     'status' => $currentOrder->status,
+                    'payment_method' => $currentOrder->payment_method,
                     'total_amount' => $currentOrder->total_amount,
                     'items' => $currentOrder->orderDetails->map(fn ($d) => [
                         'product_name' => $d->product?->name,
@@ -73,6 +76,7 @@ class DashboardController extends Controller
                 'id' => $order->id,
                 'status' => $order->status,
                 'type' => $order->type ?? 'takeaway',
+                'payment_method' => $order->payment_method,
                 'total_amount' => $order->total_amount,
                 'items' => $order->orderDetails->map(fn ($d) => [
                     'product_name' => $d->product?->name,
@@ -90,7 +94,15 @@ class DashboardController extends Controller
             'orders_active' => $ordersActive,
         ];
 
+        // Checklist de primeros pasos (se oculta cuando todo está cargado)
+        $setup = [
+            'categories' => ProductCategory::where('restaurant_id', $user->restaurant_id)->exists(),
+            'products' => Product::where('branch_id', $branchId)->exists(),
+            'tables' => $tablesTotal > 0,
+        ];
+
         return Inertia::render('Dashboard', [
+            'setup' => $setup,
             'stats' => $stats,
             'mesas' => $mesas,
             'pedidos_sin_mesa' => $pedidosSinMesa,

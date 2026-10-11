@@ -37,6 +37,11 @@ if [ "${RUN_MIGRATE}" = "true" ]; then
   php artisan migrate --force --no-interaction
 fi
 
+# Planes de suscripción (idempotente: updateOrCreate por slug). Sin ellos el registro no asigna plan.
+if [ "${RUN_MIGRATE}" = "true" ]; then
+  php artisan db:seed --class=SubscriptionPlanSeeder --force --no-interaction
+fi
+
 # Cachear configuración, rutas, vistas y eventos con las variables del entorno
 php artisan optimize
 

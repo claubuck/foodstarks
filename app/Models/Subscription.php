@@ -34,6 +34,13 @@ class Subscription extends Model
         return $this->belongsTo(SubscriptionPlan::class, 'plan_id');
     }
 
+    /** Vigentes: trial/active y sin fecha fin (Free) o con fecha fin futura. */
+    public function scopeCurrent($query)
+    {
+        return $query->whereIn('status', ['trial', 'active'])
+            ->where(fn ($q) => $q->whereNull('current_period_end')->orWhere('current_period_end', '>=', now()));
+    }
+
     public function isActive(): bool
     {
         if (! in_array($this->status, ['trial', 'active'])) {

@@ -15,6 +15,12 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
+    // Operadores de la plataforma (panel /superadmin y Horizon), emails separados por coma
+    'superadmins' => array_filter(array_map('trim', explode(',', (string) env('SUPERADMIN_EMAILS', '')))),
+
+    // Contacto para contratar o cambiar de plan (mientras no haya cobro online)
+    'support_email' => env('SUPPORT_EMAIL', env('MAIL_FROM_ADDRESS')),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment
@@ -65,7 +71,7 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'America/Argentina/Buenos_Aires'),
 
     /*
     |--------------------------------------------------------------------------

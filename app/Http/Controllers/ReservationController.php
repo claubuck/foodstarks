@@ -72,7 +72,7 @@ class ReservationController extends Controller
             'notes' => $request->notes,
         ]);
 
-        $table->update(['status' => 'reserved']);
+        $table->syncStatus();
 
         return redirect()->route('reservations.index')->with('success', 'Reserva creada.');
     }
@@ -96,7 +96,16 @@ class ReservationController extends Controller
         if ($reservation->restaurant_id !== $user->restaurant_id || $reservation->branch_id !== $branchId) {
             abort(404);
         }
-        $reservation->update($request->validated());
+        $validated = $request->validated();
+        if (isset($validated['table_id'])) {
+            Table::where('id', $validated['table_id'])->where('branch_id', $branchId)->firstOrFail();
+        }
+
+        $previousTable = $reservation->table;
+        $reservation->update($validated);
+        $previousTable?->syncStatus();
+        $reservation->refresh()->table?->syncStatus();
+
         return redirect()->route('reservations.index')->with('success', 'Reserva actualizada.');
     }
 
@@ -107,10 +116,9 @@ class ReservationController extends Controller
         if ($reservation->restaurant_id !== $user->restaurant_id || $reservation->branch_id !== $branchId) {
             abort(404);
         }
-        if ($reservation->table_id) {
-            $reservation->table->update(['status' => 'available']);
-        }
+        $table = $reservation->table;
         $reservation->delete();
+        $table?->syncStatus();
         return redirect()->route('reservations.index')->with('success', 'Reserva eliminada.');
     }
 }

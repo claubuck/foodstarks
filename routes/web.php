@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\BranchController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\RestaurantController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\SubscriptionController;
+use App\Http\Controllers\SuperadminDashboardController;
 use App\Http\Controllers\TableController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -23,107 +25,83 @@ Route::get('/', function () {
     ]);
 });
 
-// Prueba de cola (despacha un job; ver en Horizon o en la tabla jobs)
-Route::get('/queue-test', function () {
-    \App\Jobs\TestQueueJob::dispatch('¡Hola desde la cola!');
-    return response()->json([
-        'message' => 'Job despachado. Revisá Horizon en /horizon o la tabla jobs.',
-    ]);
-})->name('queue.test');
-
-// Diagnóstico: conexión de colas y Redis (para ver si Horizon puede procesar)
-Route::get('/queue-diagnostic', function () {
-    $connection = config('queue.default');
-    $redisHost = config('database.redis.default.host');
-    $redisPort = config('database.redis.default.port');
-    $redisOk = false;
-    $redisError = null;
-    try {
-        \Illuminate\Support\Facades\Redis::connection()->ping();
-        $redisOk = true;
-    } catch (Throwable $e) {
-        $redisError = $e->getMessage();
-    }
-    return response()->json([
-        'queue_connection' => $connection,
-        'redis_host' => $redisHost,
-        'redis_port' => $redisPort,
-        'redis_reachable' => $redisOk,
-        'redis_error' => $redisError,
-        'hint' => $connection === 'redis' && $redisOk
-            ? 'Todo OK: los jobs van a Redis y Horizon puede procesarlos.'
-            : ($connection !== 'redis'
-                ? 'Cambiá QUEUE_CONNECTION a redis y reiniciá app + horizon.'
-                : 'Redis no responde; revisá que el contenedor redis esté arriba.'),
-    ]);
-})->name('queue.diagnostic');
-
-// Prueba de conexión a Laravel Reverb (WebSockets)
-Route::get('/reverb-test', function () {
-    return Inertia::render('ReverbTest', [
-        'reverbHost' => config('broadcasting.connections.reverb.options.host'),
-        'reverbPort' => config('broadcasting.connections.reverb.options.port'),
-        'reverbScheme' => config('broadcasting.connections.reverb.options.scheme'),
-    ]);
-})->name('reverb.test');
-
-// Diagnóstico: qué usa la app para enviar a Reverb (app_id, host, etc.)
-Route::get('/reverb-diagnostic', function () {
-    $conn = config('broadcasting.connections.reverb');
-    return response()->json([
-        'app_id' => $conn['app_id'] ?? null,
-        'key' => $conn['key'] ?? null,
-        'host' => $conn['options']['host'] ?? null,
-        'port' => $conn['options']['port'] ?? null,
-        'hint' => 'El app_id debe ser exactamente "foodstarks" y coincidir con config/reverb.php en el contenedor Reverb.',
-    ]);
-})->name('reverb.diagnostic');
-
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/subscription/required', [SubscriptionController::class, 'required'])
         ->name('subscription.required');
-        Route::get('/subscription', [SubscriptionController::class, 'index'])
-            ->name('subscription.index');
+    Route::get('/subscription', [SubscriptionController::class, 'index'])
+        ->name('subscription.index');
 
-        Route::middleware(['subscription.active', 'branch.set'])->group(function () {
-            Route::post('/branch/switch', [BranchController::class, 'switch'])
-                ->name('branch.switch');
-            Route::get('/dashboard', \App\Http\Controllers\DashboardController::class)->name('dashboard');
+    // Operador de la plataforma (SUPERADMIN_EMAILS): restaurantes/planes y diagnóstico
+    Route::middleware(['can:superadmin', 'branch.set'])->prefix('superadmin')->group(function () {
+        Route::get('/', SuperadminDashboardController::class)->name('superadmin.dashboard');
+        Route::post('/restaurants/{restaurant}/plan', [SuperadminDashboardController::class, 'assignPlan'])
+            ->name('superadmin.restaurants.plan');
 
-            // Panel superadmin (solo owner/admin): Prueba tiempo real + Horizon
-            Route::get('/superadmin', \App\Http\Controllers\SuperadminDashboardController::class)->name('superadmin.dashboard');
+        // Prueba de tiempo real: ver estado Echo/Reverb y enviar evento order.updated
+        Route::get('/realtime-test', function () {
+            $branchId = request()->attributes->get('current_branch_id') ?? session('current_branch_id');
+            $reverb = config('broadcasting.connections.reverb');
 
-            // Prueba de tiempo real: ver estado Echo/Reverb y enviar evento order.updated
-            Route::get('/realtime-test', function () {
-                $branchId = request()->attributes->get('current_branch_id') ?? session('current_branch_id');
-                $reverb = config('broadcasting.connections.reverb');
-                return Inertia::render('RealtimeTest', [
-                    'branch_id' => $branchId,
-                    'reverbHost' => $reverb['public_host'] ?? $reverb['options']['host'] ?? 'localhost',
-                    'reverbPort' => $reverb['public_port'] ?? $reverb['options']['port'] ?? 8080,
-                    'reverbScheme' => $reverb['public_scheme'] ?? $reverb['options']['scheme'] ?? 'http',
-                ]);
-            })->name('realtime.test');
-            Route::post('/realtime-test/send', function () {
-                $branchId = request()->attributes->get('current_branch_id') ?? session('current_branch_id');
-                if (! $branchId) {
-                    return response()->json(['ok' => false, 'error' => 'No hay sucursal seleccionada.'], 400);
-                }
-                try {
-                    \App\Events\OrderUpdated::dispatch($branchId);
-                    return response()->json(['ok' => true]);
-                } catch (\Illuminate\Broadcasting\BroadcastException $e) {
-                    return response()->json(['ok' => false, 'error' => $e->getMessage()], 200);
-                }
-            })->name('realtime.send');
+            return Inertia::render('RealtimeTest', [
+                'branch_id' => $branchId,
+                'reverbHost' => $reverb['public_host'] ?? $reverb['options']['host'] ?? 'localhost',
+                'reverbPort' => $reverb['public_port'] ?? $reverb['options']['port'] ?? 8080,
+                'reverbScheme' => $reverb['public_scheme'] ?? $reverb['options']['scheme'] ?? 'http',
+            ]);
+        })->name('realtime.test');
+        Route::post('/realtime-test/send', function () {
+            $branchId = request()->attributes->get('current_branch_id') ?? session('current_branch_id');
+            if (! $branchId) {
+                return response()->json(['ok' => false, 'error' => 'No hay sucursal seleccionada.'], 400);
+            }
+            try {
+                \App\Events\OrderUpdated::dispatch($branchId);
 
-        Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-        Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-        Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+                return response()->json(['ok' => true]);
+            } catch (\Illuminate\Broadcasting\BroadcastException $e) {
+                return response()->json(['ok' => false, 'error' => $e->getMessage()], 200);
+            }
+        })->name('realtime.send');
+
+        // Prueba de cola (despacha un job; ver en Horizon)
+        Route::get('/queue-test', function () {
+            \App\Jobs\TestQueueJob::dispatch('¡Hola desde la cola!');
+
+            return response()->json(['message' => 'Job despachado. Revisá Horizon.']);
+        })->name('queue.test');
+
+        // Diagnóstico: conexión de colas y Redis
+        Route::get('/queue-diagnostic', function () {
+            $redisOk = false;
+            $redisError = null;
+            try {
+                \Illuminate\Support\Facades\Redis::connection()->ping();
+                $redisOk = true;
+            } catch (Throwable $e) {
+                $redisError = $e->getMessage();
+            }
+
+            return response()->json([
+                'queue_connection' => config('queue.default'),
+                'redis_host' => config('database.redis.default.host'),
+                'redis_port' => config('database.redis.default.port'),
+                'redis_reachable' => $redisOk,
+                'redis_error' => $redisError,
+            ]);
+        })->name('queue.diagnostic');
+    });
+
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::middleware(['subscription.active', 'branch.set'])->group(function () {
+        Route::post('/branch/switch', [BranchController::class, 'switch'])
+            ->name('branch.switch');
+        Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
         Route::get('/sales/create', [OrderController::class, 'create'])->name('sales.create');
         Route::get('/products', [ProductController::class, 'index'])->name('products.index');
-        Route::get('/products/create', [ProductController::class, 'create'])->name('products.create');
         Route::post('/products/store', [ProductController::class, 'store'])->name('products.store');
         Route::get('/products/edit/{product}', [ProductController::class, 'edit'])->name('products.edit');
         Route::put('/products/update/{product}', [ProductController::class, 'update'])->name('products.update');
@@ -146,6 +124,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
         Route::post('/employees', [EmployeeController::class, 'store'])->name('employees.store');
+        Route::put('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
+        Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
 
         Route::get('/settings/restaurant', [RestaurantController::class, 'edit'])->name('restaurant.edit');
         Route::put('/settings/restaurant', [RestaurantController::class, 'update'])->name('restaurant.update');

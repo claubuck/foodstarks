@@ -40,6 +40,11 @@ if [ "$RUN_MIGRATE" = "true" ]; then
   php artisan migrate --force --no-interaction || true
 fi
 
+# Planes de suscripción (idempotente: updateOrCreate por slug). Sin ellos el registro no asigna plan.
+if [ "${RUN_MIGRATE}" = "true" ]; then
+  php artisan db:seed --class=SubscriptionPlanSeeder --force --no-interaction
+fi
+
 # Limpiar cachés para que se use manifest de Vite y config/URL actual (evita assets por http tras proxy HTTPS)
 php artisan config:clear
 php artisan view:clear

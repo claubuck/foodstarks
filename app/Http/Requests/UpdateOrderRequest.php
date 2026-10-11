@@ -16,6 +16,7 @@ class UpdateOrderRequest extends FormRequest
         return [
             'status' => 'sometimes|in:pending,in_progress,completed,cancelled',
             'paid' => 'sometimes|boolean',
+            'payment_method' => 'sometimes|in:cash,card,transfer',
         ];
     }
 }

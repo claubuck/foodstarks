@@ -6,12 +6,48 @@ on:
   pull_request:
     branches: [main]
 
-# TODO: sumar un job "test" (pint --test + php artisan test) como en noticlub
-# cuando la suite pase: hoy los tests de Breeze fallan porque users.restaurant_id
-# es obligatorio y Pint marca varios archivos.
+# Pint todavía no corre en CI: el código heredado no está formateado (vendor/bin/pint --test falla).
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite, mbstring, intl, bcmath, gd, zip, dom, pcntl
+          tools: composer:v2
+          coverage: none
+
+      - name: Composer install
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Preparar entorno
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      # Los tests de Inertia renderizan la vista con @vite: necesitan el manifest.
+      - name: npm install + build
+        run: |
+          npm ci
+          npm run build
+
+      # phpunit.xml usa SQLite en memoria y broadcasting null: no hacen falta servicios.
+      - name: Tests
+        run: php artisan test --compact
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -26,7 +26,8 @@ class UserFactory extends Factory
         return [
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
-            'role' => fake()->randomElement(['admin', 'waiter']),
+            'restaurant_id' => \App\Models\Restaurant::factory(),
+            'role' => 'waiter',
             'avatar_url' => fake()->imageUrl(640, 480, 'people'),
             'last_login' => now(),
             'email_verified_at' => now(),

@@ -90,6 +90,13 @@ class TableController extends Controller
         if ($table->restaurant_id !== $user->restaurant_id || $table->branch_id !== $branchId) {
             abort(404);
         }
+        if ($table->orders()->active()->exists()) {
+            return redirect()->route('tables.index')->with('error', 'La mesa tiene un pedido abierto: cobralo o cancelalo antes de eliminarla.');
+        }
+        if ($table->reservations()->whereIn('status', ['pending', 'confirmed'])->where('reservation_time', '>=', now())->exists()) {
+            return redirect()->route('tables.index')->with('error', 'La mesa tiene reservas próximas: reasignalas o cancelalas antes de eliminarla.');
+        }
+
         $table->delete();
         return redirect()->route('tables.index')->with('success', 'Mesa eliminada.');
     }

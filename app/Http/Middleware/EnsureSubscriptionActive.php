@@ -15,16 +15,11 @@ class EnsureSubscriptionActive
             return $next($request);
         }
 
-        $subscription = $user->restaurant->subscriptions()
-            ->whereIn('status', ['trial', 'active'])
-            ->where('current_period_end', '>=', now())
-            ->latest()
-            ->first();
-
-        if (! $subscription) {
+        if (! $user->restaurant->activeSubscription()->exists()) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'Tu suscripción no está activa.'], 403);
             }
+
             return redirect()->route('subscription.required');
         }
 

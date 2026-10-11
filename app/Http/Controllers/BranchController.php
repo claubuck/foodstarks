@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
-use App\Models\Subscription;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -53,8 +52,7 @@ class BranchController extends Controller
     public function create(Request $request)
     {
         $restaurant = $request->user()->restaurant;
-        $subscription = $restaurant->subscriptions()->whereIn('status', ['trial', 'active'])->with('plan')->latest()->first();
-        $maxBranches = $subscription?->plan?->max_branches ?? 1;
+        $maxBranches = $restaurant->currentPlan()?->max_branches ?? 1;
         $currentCount = $restaurant->branches()->count();
 
         if ($currentCount >= $maxBranches) {
@@ -69,8 +67,7 @@ class BranchController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $restaurant = $request->user()->restaurant;
-        $subscription = $restaurant->subscriptions()->whereIn('status', ['trial', 'active'])->with('plan')->latest()->first();
-        $maxBranches = $subscription?->plan?->max_branches ?? 1;
+        $maxBranches = $restaurant->currentPlan()?->max_branches ?? 1;
         if ($restaurant->branches()->count() >= $maxBranches) {
             return redirect()->route('branches.index')->with('error', "Límite de {$maxBranches} sucursales alcanzado.");
         }
@@ -119,6 +116,11 @@ class BranchController extends Controller
             'opening_hours' => 'nullable|array',
             'is_active' => 'boolean',
         ]);
+
+        $deactivating = array_key_exists('is_active', $validated) && ! $validated['is_active'] && $branch->is_active;
+        if ($deactivating && $user->restaurant->branches()->where('is_active', true)->count() <= 1) {
+            return back()->with('error', 'Tiene que quedar al menos una sucursal activa.');
+        }
 
         $branch->update($validated);
 

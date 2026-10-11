@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -20,6 +20,7 @@ class EmployeeController extends Controller
             if (! in_array($user->role, ['owner', 'manager'])) {
                 abort(403, 'No autorizado.');
             }
+
             return $next($request);
         });
     }
@@ -33,24 +34,16 @@ class EmployeeController extends Controller
 
         return Inertia::render('Employees/Index', [
             'employees' => $employees,
+            'max_users' => $user->restaurant->currentPlan()?->max_users,
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $user = auth()->user();
-        $restaurant = $user->restaurant;
+        $restaurant = auth()->user()->restaurant;
 
-        $subscription = $restaurant->subscriptions()
-            ->whereIn('status', ['trial', 'active'])
-            ->where('current_period_end', '>=', now())
-            ->with('plan')
-            ->latest()
-            ->first();
-
-        $maxUsers = $subscription?->plan?->max_users ?? 5;
-        $currentCount = User::where('restaurant_id', $restaurant->id)->count();
-        if ($currentCount >= $maxUsers) {
+        $maxUsers = $restaurant->currentPlan()?->max_users ?? 5;
+        if ($restaurant->users()->count() >= $maxUsers) {
             return redirect()->route('employees.index')
                 ->with('error', "Has alcanzado el límite de {$maxUsers} usuarios de tu plan.");
         }
@@ -71,5 +64,54 @@ class EmployeeController extends Controller
         ]);
 
         return redirect()->route('employees.index')->with('success', 'Empleado agregado correctamente.');
+    }
+
+    public function update(Request $request, User $employee): RedirectResponse
+    {
+        $this->ensureManageable($employee);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users', 'email')->ignore($employee->id)],
+            'password' => ['nullable', 'confirmed', Password::defaults()],
+            'role' => 'required|in:waiter,chef,manager',
+        ]);
+
+        $employee->fill([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'role' => $validated['role'],
+        ]);
+        if (! empty($validated['password'])) {
+            $employee->password = Hash::make($validated['password']);
+        }
+        $employee->save();
+
+        return redirect()->route('employees.index')->with('success', 'Empleado actualizado.');
+    }
+
+    public function destroy(User $employee): RedirectResponse
+    {
+        $this->ensureManageable($employee);
+
+        // Sus pedidos quedan (orders.user_id hace cascade): se reasignan al usuario que da de baja
+        $employee->getConnection()->table('orders')
+            ->where('user_id', $employee->id)
+            ->update(['user_id' => auth()->id()]);
+        $employee->delete();
+
+        return redirect()->route('employees.index')->with('success', 'Empleado eliminado.');
+    }
+
+    /** Solo empleados del mismo restaurante; el dueño y el propio usuario no se gestionan desde acá. */
+    private function ensureManageable(User $employee): void
+    {
+        $user = auth()->user();
+        if ($employee->restaurant_id !== $user->restaurant_id) {
+            abort(404);
+        }
+        if ($employee->role === 'owner' || $employee->id === $user->id) {
+            abort(403, 'Este usuario se gestiona desde su perfil.');
+        }
     }
 }

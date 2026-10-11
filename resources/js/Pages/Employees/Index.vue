@@ -4,14 +4,18 @@ import InputError from '@/Components/InputError.vue'
 import InputLabel from '@/Components/InputLabel.vue'
 import PrimaryButton from '@/Components/PrimaryButton.vue'
 import TextInput from '@/Components/TextInput.vue'
-import { Head, useForm } from '@inertiajs/vue3'
-import { ref } from 'vue'
+import { Head, router, useForm, usePage } from '@inertiajs/vue3'
+import { computed, ref } from 'vue'
 
 const props = defineProps({
   employees: Array,
+  max_users: Number,
 })
 
+const currentUserId = computed(() => usePage().props.auth.user?.id)
+
 const showModal = ref(false)
+const editing = ref(null)
 const form = useForm({
   name: '',
   email: '',
@@ -20,20 +24,57 @@ const form = useForm({
   role: 'waiter',
 })
 
+function abrirAlta() {
+  editing.value = null
+  form.reset()
+  form.clearErrors()
+  showModal.value = true
+}
+
+function abrirEdicion(e) {
+  editing.value = e
+  form.clearErrors()
+  form.name = e.name
+  form.email = e.email
+  form.role = e.role
+  form.password = ''
+  form.password_confirmation = ''
+  showModal.value = true
+}
+
+function cerrar() {
+  showModal.value = false
+  editing.value = null
+}
+
 function submit() {
-  form.post(route('employees.store'), {
+  const options = {
     onSuccess: () => {
       form.reset()
-      showModal.value = false
+      cerrar()
     },
-  })
+  }
+  if (editing.value) {
+    form.put(route('employees.update', editing.value.id), options)
+  } else {
+    form.post(route('employees.store'), options)
+  }
 }
+
+function eliminar(e) {
+  if (confirm(`¿Eliminar a ${e.name}? Sus pedidos quedarán a tu nombre.`)) {
+    router.delete(route('employees.destroy', e.id))
+  }
+}
+
+const gestionable = (e) => e.role !== 'owner' && e.id !== currentUserId.value
 
 const roleLabels = {
   owner: 'Dueño',
-  manager: 'Manager',
+  admin: 'Administrador',
+  manager: 'Encargado',
   chef: 'Cocinero',
-  waiter: 'Mesero',
+  waiter: 'Mozo',
 }
 </script>
 
@@ -42,8 +83,11 @@ const roleLabels = {
   <AuthenticatedLayout>
     <template #header>
       <div class="flex items-center justify-between">
-        <span>Empleados</span>
-        <PrimaryButton @click="showModal = true">Agregar empleado</PrimaryButton>
+        <span>
+          Empleados
+          <span v-if="max_users" class="ml-2 text-sm font-normal text-gray-500">({{ employees.length }} / {{ max_users }})</span>
+        </span>
+        <PrimaryButton @click="abrirAlta">Agregar empleado</PrimaryButton>
       </div>
     </template>
     <div class="space-y-4">
@@ -55,6 +99,7 @@ const roleLabels = {
               <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Email</th>
               <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Rol</th>
               <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Alta</th>
+              <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Acciones</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200 bg-white">
@@ -63,19 +108,24 @@ const roleLabels = {
               <td class="px-4 py-3 text-sm text-gray-700">{{ e.email }}</td>
               <td class="px-4 py-3 text-sm text-gray-700">{{ roleLabels[e.role] || e.role }}</td>
               <td class="px-4 py-3 text-sm text-gray-500">{{ new Date(e.created_at).toLocaleDateString('es') }}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-right text-sm">
+                <template v-if="gestionable(e)">
+                  <button type="button" class="text-blue-600 hover:underline" @click="abrirEdicion(e)">Editar</button>
+                  <button type="button" class="ml-3 text-red-600 hover:underline" @click="eliminar(e)">Eliminar</button>
+                </template>
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <!-- Modal Agregar empleado -->
       <div
         v-if="showModal"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-        @click.self="showModal = false"
+        @click.self="cerrar"
       >
         <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-lg">
-          <h3 class="mb-4 text-lg font-bold text-gray-800">Agregar empleado</h3>
+          <h3 class="mb-4 text-lg font-bold text-gray-800">{{ editing ? 'Editar empleado' : 'Agregar empleado' }}</h3>
           <form @submit.prevent="submit" class="space-y-4">
             <div>
               <InputLabel for="name" value="Nombre" />
@@ -88,26 +138,26 @@ const roleLabels = {
               <InputError :message="form.errors.email" />
             </div>
             <div>
-              <InputLabel for="password" value="Contraseña temporal" />
-              <TextInput id="password" v-model="form.password" type="password" class="mt-1 block w-full" required />
+              <InputLabel for="password" :value="editing ? 'Nueva contraseña (opcional)' : 'Contraseña temporal'" />
+              <TextInput id="password" v-model="form.password" type="password" class="mt-1 block w-full" :required="!editing" />
               <InputError :message="form.errors.password" />
             </div>
             <div>
               <InputLabel for="password_confirmation" value="Confirmar contraseña" />
-              <TextInput id="password_confirmation" v-model="form.password_confirmation" type="password" class="mt-1 block w-full" required />
+              <TextInput id="password_confirmation" v-model="form.password_confirmation" type="password" class="mt-1 block w-full" :required="!editing || !!form.password" />
               <InputError :message="form.errors.password_confirmation" />
             </div>
             <div>
               <InputLabel for="role" value="Rol" />
               <select id="role" v-model="form.role" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                <option value="waiter">Mesero</option>
+                <option value="waiter">Mozo</option>
                 <option value="chef">Cocinero</option>
-                <option value="manager">Manager</option>
+                <option value="manager">Encargado</option>
               </select>
               <InputError :message="form.errors.role" />
             </div>
             <div class="flex justify-end gap-2">
-              <button type="button" class="rounded bg-gray-200 px-4 py-2 hover:bg-gray-300" @click="showModal = false">
+              <button type="button" class="rounded bg-gray-200 px-4 py-2 hover:bg-gray-300" @click="cerrar">
                 Cancelar
               </button>
               <PrimaryButton type="submit" :disabled="form.processing">Guardar</PrimaryButton>

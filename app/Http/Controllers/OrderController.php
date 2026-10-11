@@ -6,13 +6,13 @@ use App\Events\OrderUpdated;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\UpdateOrderRequest;
 use App\Models\Order;
-use App\Models\OrderDetail;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Table;
 use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -34,7 +34,8 @@ class OrderController extends Controller
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('date'), fn ($q) => $q->whereDate('created_at', $request->date))
             ->latest()
-            ->paginate(15);
+            ->paginate(15)
+            ->withQueryString();
 
         return Inertia::render('Orders/Index', [
             'orders' => $orders,
@@ -50,7 +51,7 @@ class OrderController extends Controller
             return redirect()->route('dashboard');
         }
 
-        $perPage = $request->input('per_page', 6);
+        $perPage = min((int) $request->input('per_page', 12), 48);
         $categoryId = $request->input('categoria');
         $buscar = $request->input('buscar');
         $tableId = $request->input('table_id');
@@ -62,27 +63,33 @@ class OrderController extends Controller
             ->where('is_active', true)
             ->when($categoryId, fn ($q, $id) => $q->where('category_id', $id))
             ->when($buscar, fn ($q, $b) => $q->where('name', 'like', '%'.$b.'%'))
-            ->paginate($perPage);
+            ->orderBy('name')
+            ->paginate($perPage)
+            ->withQueryString();
 
-        $categorias = ProductCategory::where('restaurant_id', $user->restaurant_id)->get(['id', 'name']);
+        $categorias = ProductCategory::where('restaurant_id', $user->restaurant_id)->orderBy('name')->get(['id', 'name']);
         $mesas = Table::where('branch_id', $branchId)->orderBy('table_number')->get(['id', 'table_number', 'capacity', 'status']);
 
-        $currentOrder = null;
-        if ($orderId) {
-            $currentOrder = Order::where('branch_id', $branchId)
-                ->where('restaurant_id', $user->restaurant_id)
-                ->whereIn('status', ['pending', 'in_progress'])
-                ->with(['orderDetails.product'])
-                ->find($orderId);
-        }
+        // Si llega una mesa con pedido abierto, se trabaja sobre ese pedido
+        $currentOrder = Order::where('branch_id', $branchId)
+            ->where('restaurant_id', $user->restaurant_id)
+            ->active()
+            ->with(['orderDetails.product'])
+            ->when(
+                $orderId,
+                fn ($q) => $q->whereKey($orderId),
+                fn ($q) => $q->whereNotNull('table_id')->where('table_id', $tableId ?: 0)
+            )
+            ->latest('id')
+            ->first();
 
         return Inertia::render('Sales/Create', [
             'productos' => $productos,
             'categorias' => $categorias,
             'mesas' => $mesas,
             'filters' => $request->only(['buscar', 'categoria']),
-            'table_id' => $tableId,
-            'order_id' => $orderId,
+            'table_id' => $currentOrder?->table_id ?? $tableId,
+            'order_id' => $currentOrder?->id,
             'current_order' => $currentOrder,
         ]);
     }
@@ -96,76 +103,57 @@ class OrderController extends Controller
         }
 
         $validated = $request->validated();
-        $orderId = $request->input('order_id');
-        $tableId = $request->input('table_id');
+        $tableId = $validated['table_id'] ?? null;
 
-        if ($orderId) {
-            $order = Order::where('branch_id', $branchId)
-                ->where('restaurant_id', $user->restaurant_id)
-                ->whereIn('status', ['pending', 'in_progress'])
-                ->find($orderId);
-
-            if ($order) {
-                $totalAdded = 0;
-                foreach ($validated['items'] as $item) {
-                    OrderDetail::create([
-                        'order_id' => $order->id,
-                        'product_id' => $item['product_id'],
-                        'quantity' => $item['quantity'],
-                        'unit_price' => $item['price'],
-                    ]);
-                    $totalAdded += $item['price'] * $item['quantity'];
-                }
-                $order->increment('total_amount', $totalAdded);
-                $this->broadcastOrderUpdated($branchId);
-
-                return redirect()->route('sales.create', ['table_id' => $order->table_id, 'order_id' => $order->id])
-                    ->with('success', 'Ítems agregados al pedido.');
+        $order = DB::transaction(function () use ($validated, $user, $branchId, $tableId) {
+            // Pedido destino: el indicado, o el abierto de la mesa, o uno nuevo
+            $order = null;
+            if (! empty($validated['order_id'])) {
+                $order = Order::where('branch_id', $branchId)->active()->lockForUpdate()->find($validated['order_id']);
+            } elseif ($tableId) {
+                $order = Order::where('branch_id', $branchId)->where('table_id', $tableId)->active()->lockForUpdate()->latest('id')->first();
             }
-        }
 
-        $totalAmount = 0;
-        foreach ($validated['items'] as $item) {
-            $totalAmount += $item['price'] * $item['quantity'];
-        }
+            if (! $order) {
+                $order = Order::create([
+                    'restaurant_id' => $user->restaurant_id,
+                    'branch_id' => $branchId,
+                    'user_id' => $user->id,
+                    'table_id' => $tableId,
+                    'type' => $tableId ? 'dine_in' : $validated['type'],
+                    'payment_method' => $validated['payment_method'],
+                    'total_amount' => 0,
+                    'status' => 'pending',
+                    'paid' => false,
+                ]);
+            }
 
-        $order = Order::create([
-            'restaurant_id' => $user->restaurant_id,
-            'branch_id' => $branchId,
-            'user_id' => $user->id,
-            'table_id' => $tableId,
-            'type' => $validated['type'],
-            'payment_method' => $validated['payment_method'],
-            'total_amount' => $totalAmount,
-            'status' => 'pending',
-            'paid' => false,
-        ]);
+            // Precios siempre desde la base
+            $prices = Product::whereIn('id', collect($validated['items'])->pluck('product_id'))->pluck('price', 'id');
+            foreach ($validated['items'] as $item) {
+                $order->orderDetails()->create([
+                    'product_id' => $item['product_id'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $prices[$item['product_id']],
+                    'notes' => $item['notes'] ?? null,
+                ]);
+            }
+            $order->recalculateTotal();
 
-        foreach ($validated['items'] as $item) {
-            OrderDetail::create([
-                'order_id' => $order->id,
-                'product_id' => $item['product_id'],
-                'quantity' => $item['quantity'],
-                'unit_price' => $item['price'],
-            ]);
-        }
+            return $order;
+        });
 
-        if ($tableId) {
-            Table::where('id', $tableId)->where('branch_id', $branchId)->update(['status' => 'occupied']);
-        }
-
+        $order->table?->syncStatus();
         $this->broadcastOrderUpdated($branchId);
 
-        return redirect()->route('orders.index')->with('success', 'Pedido creado correctamente.');
+        $message = $order->wasRecentlyCreated ? 'Pedido creado correctamente.' : 'Ítems agregados al pedido.';
+
+        return redirect()->route('dashboard')->with('success', $message);
     }
 
     public function show(Order $order): Response
     {
-        $user = auth()->user();
-        $branchId = $this->currentBranchId();
-        if ($order->restaurant_id !== $user->restaurant_id || $order->branch_id !== $branchId) {
-            abort(404);
-        }
+        $this->ensureInBranch($order);
 
         $order->load(['table', 'user', 'orderDetails.product']);
 
@@ -181,20 +169,10 @@ class OrderController extends Controller
 
     public function update(UpdateOrderRequest $request, Order $order): RedirectResponse
     {
-        $user = auth()->user();
-        $branchId = $this->currentBranchId($request);
-        if ($order->restaurant_id !== $user->restaurant_id || $order->branch_id !== $branchId) {
-            abort(404);
-        }
+        $this->ensureInBranch($order);
 
-        $validated = $request->validated();
-        $order->update($validated);
-
-        if (isset($validated['status']) && in_array($validated['status'], ['completed', 'cancelled'])) {
-            if ($order->table_id) {
-                Table::where('id', $order->table_id)->update(['status' => 'available']);
-            }
-        }
+        $order->update($request->validated());
+        $order->table?->syncStatus();
 
         $this->broadcastOrderUpdated($order->branch_id);
 
@@ -203,38 +181,46 @@ class OrderController extends Controller
 
     public function destroy(Order $order): RedirectResponse
     {
-        $user = auth()->user();
-        $branchId = $this->currentBranchId();
-        if ($order->restaurant_id !== $user->restaurant_id || $order->branch_id !== $branchId) {
-            abort(404);
-        }
+        $this->ensureInBranch($order);
 
-        if ($order->table_id) {
-            Table::where('id', $order->table_id)->update(['status' => 'available']);
-        }
-        $order->delete();
+        $table = $order->table;
+        DB::transaction(function () use ($order) {
+            // order_details no tiene cascade en la FK
+            $order->orderDetails()->delete();
+            $order->delete();
+        });
+        $table?->syncStatus();
 
         $this->broadcastOrderUpdated($order->branch_id);
 
         return redirect()->route('orders.index')->with('success', 'Pedido eliminado.');
     }
 
-    public function cobrar(Order $order): RedirectResponse
+    public function cobrar(Request $request, Order $order): RedirectResponse
     {
-        $user = auth()->user();
-        $branchId = $this->currentBranchId();
-        if ($order->restaurant_id !== $user->restaurant_id || $order->branch_id !== $branchId) {
-            abort(404);
-        }
+        $this->ensureInBranch($order);
 
-        $order->update(['status' => 'completed', 'paid' => true]);
-        if ($order->table_id) {
-            Table::where('id', $order->table_id)->where('branch_id', $branchId)->update(['status' => 'available']);
-        }
+        $validated = $request->validate([
+            'payment_method' => 'nullable|in:cash,card,transfer',
+        ]);
 
-        $this->broadcastOrderUpdated($branchId);
+        $order->update([
+            'status' => 'completed',
+            'paid' => true,
+            'payment_method' => $validated['payment_method'] ?? $order->payment_method,
+        ]);
+        $order->table?->syncStatus();
+
+        $this->broadcastOrderUpdated($order->branch_id);
 
         return redirect()->route('dashboard')->with('success', 'Pedido cobrado.');
+    }
+
+    private function ensureInBranch(Order $order): void
+    {
+        if ($order->restaurant_id !== auth()->user()->restaurant_id || $order->branch_id !== $this->currentBranchId()) {
+            abort(404);
+        }
     }
 
     /**

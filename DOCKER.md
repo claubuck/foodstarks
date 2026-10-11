@@ -154,9 +154,10 @@ O compilar en tu máquina (con Node instalado) y los archivos generados en `publ
 
 Mismo esquema que `noticlub`. `.github/workflows/ci-cd.yml`:
 
-1. **build** — construye el `Dockerfile` de la raíz. En los PR solo valida que compile; en push a `main`
+1. **test** — PHP 8.4 + Node 22: `npm run build` y `php artisan test` (SQLite en memoria).
+2. **build** — construye el `Dockerfile` de la raíz. En los PR solo valida que compile; en push a `main`
    publica `ghcr.io/claubuck/foodstarks` con tags `latest` y el SHA.
-2. **deploy** — POST al webhook de Dokploy (secret de GitHub **`DOKPLOY_DEPLOY_WEBHOOK`**).
+3. **deploy** — POST al webhook de Dokploy (secret de GitHub **`DOKPLOY_DEPLOY_WEBHOOK`**).
 
 > `docker-compose.yml` es solo para desarrollo y usa `docker/Dockerfile.dev`.
 
@@ -191,6 +192,9 @@ hacen falta variables `VITE_*` al compilar.
 | `REVERB_HOST` / `REVERB_PORT` / `REVERB_SCHEME` | `127.0.0.1` / `8080` / `http` (Laravel → Reverb dentro del contenedor) |
 | `REVERB_PUBLIC_HOST` / `REVERB_PUBLIC_PORT` / `REVERB_PUBLIC_SCHEME` | `ws.tudominio.com` / `443` / `https` (navegador → Reverb) |
 | `REVERB_ALLOWED_ORIGINS` | `app.tudominio.com` (opcional, por defecto `*`) |
-| `RUN_MIGRATE` | `true` para ejecutar `migrate --force` en cada arranque |
+| `RUN_MIGRATE` | `true` para ejecutar `migrate --force` y el seeder de planes en cada arranque |
+| `APP_TIMEZONE` | `America/Argentina/Buenos_Aires` (corte de "ventas del día") |
+| `SUPERADMIN_EMAILS` | Emails con acceso a `/superadmin` (asignar planes) y Horizon |
+| `SUPPORT_EMAIL` | Email al que los restaurantes piden alta o cambio de plan |
 | `WEB_WORKERS` | Procesos del servidor web (por defecto `4`) |
 | `MP_ACCESS_TOKEN` / `MP_PUBLIC_KEY` | Mercado Pago |
