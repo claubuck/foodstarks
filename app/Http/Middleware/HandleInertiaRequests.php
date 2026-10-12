@@ -41,7 +41,7 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $user,
-                'restaurant' => $restaurant?->only(['id', 'name']),
+                'restaurant' => $restaurant?->only(['id', 'name', 'logo_url']),
                 'branches' => $branches,
                 'current_branch_id' => $currentBranchId,
                 'is_superadmin' => (bool) $user?->can('superadmin'),

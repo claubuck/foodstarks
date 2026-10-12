@@ -1,6 +1,5 @@
 <script setup>
 import { ref } from "vue";
-import ApplicationLogo from "@/Components/ApplicationLogo.vue";
 import Dropdown from "@/Components/Dropdown.vue";
 import DropdownLink from "@/Components/DropdownLink.vue";
 import { Link, router } from "@inertiajs/vue3";
@@ -46,9 +45,23 @@ const navLinkClass = (isActive) =>
       "
     >
       <!-- Logo -->
-      <div class="flex items-center justify-center h-16 border-b">
-        <Link :href="route('dashboard')">
-          <ApplicationLogo class="h-8 w-auto text-gray-800" />
+      <div class="flex items-center h-16 border-b px-4">
+        <Link :href="route('dashboard')" class="flex min-w-0 items-center gap-3">
+          <img
+            v-if="$page.props.auth.restaurant?.logo_url"
+            :src="$page.props.auth.restaurant.logo_url"
+            :alt="$page.props.auth.restaurant.name"
+            class="h-10 w-10 shrink-0 rounded-lg object-contain"
+          />
+          <span
+            v-else
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-lg font-bold text-primary-700"
+          >
+            {{ $page.props.auth.restaurant?.name?.charAt(0)?.toUpperCase() }}
+          </span>
+          <span class="truncate font-semibold text-gray-900" :title="$page.props.auth.restaurant?.name">
+            {{ $page.props.auth.restaurant?.name }}
+          </span>
         </Link>
       </div>
 
