@@ -15,6 +15,9 @@ class Subscription extends Model
         'status',
         'current_period_start',
         'current_period_end',
+        'paid_at',
+        'amount_paid',
+        'payment_reference',
         'mercadopago_subscription_id',
         'mercadopago_payer_id',
     ];
@@ -22,6 +25,8 @@ class Subscription extends Model
     protected $casts = [
         'current_period_start' => 'datetime',
         'current_period_end' => 'datetime',
+        'paid_at' => 'datetime',
+        'amount_paid' => 'decimal:2',
     ];
 
     public function restaurant()
@@ -39,6 +44,22 @@ class Subscription extends Model
     {
         return $query->whereIn('status', ['trial', 'active'])
             ->where(fn ($q) => $q->whereNull('current_period_end')->orWhere('current_period_end', '>=', now()));
+    }
+
+    /** Estado de cobro del periodo: free (plan sin costo), paid o pending. Requiere `plan` cargado. */
+    public function paymentStatus(): string
+    {
+        if ((float) $this->plan?->price_monthly <= 0) {
+            return 'free';
+        }
+
+        return $this->paid_at ? 'paid' : 'pending';
+    }
+
+    /** Vigentes de planes pagos sin pago registrado. */
+    public function scopeUnpaid($query)
+    {
+        return $query->whereNull('paid_at')->whereHas('plan', fn ($q) => $q->where('price_monthly', '>', 0));
     }
 
     public function isActive(): bool

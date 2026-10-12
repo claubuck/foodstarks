@@ -93,3 +93,36 @@ test('the owner cannot delete their own account', function () {
 
     expect(User::find($owner->id))->not->toBeNull();
 });
+
+test('superadmin sees users and restaurant detail and can register payments', function () {
+    [$owner] = restaurantUser('owner');
+    config(['app.superadmins' => [$owner->email]]);
+    $restaurant = Restaurant::find($owner->restaurant_id);
+    $plan = SubscriptionPlan::where('slug', 'basico')->sole();
+
+    $this->actingAs($owner)
+        ->post(route('superadmin.restaurants.plan', $restaurant), ['plan_id' => $plan->id, 'days' => 30])
+        ->assertSessionHas('success');
+    $subscription = $restaurant->activeSubscription()->with('plan')->first();
+    expect($subscription->paymentStatus())->toBe('pending');
+
+    $this->get(route('superadmin.dashboard', ['status' => 'pending', 'search' => strtoupper($restaurant->name)]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('restaurants.total', 1)->where('stats.pending_payment', 1));
+
+    $this->post(route('superadmin.subscriptions.payment', $subscription), ['paid' => true, 'payment_reference' => 'TRF-1'])
+        ->assertSessionHas('success');
+    expect($subscription->fresh()->paid_at)->not->toBeNull()
+        ->and((float) $subscription->fresh()->amount_paid)->toBe((float) $plan->price_monthly);
+
+    $this->get(route('superadmin.restaurants.show', $restaurant))->assertOk()
+        ->assertInertia(fn ($page) => $page->component('Superadmin/Restaurant')->where('subscriptions.0.payment_status', 'paid'));
+    $this->get(route('superadmin.users', ['role' => 'owner']))->assertOk()
+        ->assertInertia(fn ($page) => $page->component('Superadmin/Users')->where('users.total', 1));
+});
+
+test('login records last_login', function () {
+    [$owner] = restaurantUser('owner');
+    $this->post(route('login'), ['email' => $owner->email, 'password' => 'password']);
+    expect($owner->fresh()->last_login)->not->toBeNull();
+});

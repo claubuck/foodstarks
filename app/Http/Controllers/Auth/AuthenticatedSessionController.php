@@ -34,6 +34,8 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         $user = $request->user();
+        $user->forceFill(['last_login' => now()])->saveQuietly();
+
         if ($user->restaurant_id) {
             $firstBranch = $user->restaurant->branches()->where('is_active', true)->first();
             if ($firstBranch) {

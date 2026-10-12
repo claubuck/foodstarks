@@ -36,6 +36,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/', SuperadminDashboardController::class)->name('superadmin.dashboard');
         Route::post('/restaurants/{restaurant}/plan', [SuperadminDashboardController::class, 'assignPlan'])
             ->name('superadmin.restaurants.plan');
+        Route::get('/restaurants/{restaurant}', [SuperadminDashboardController::class, 'show'])
+            ->name('superadmin.restaurants.show');
+        Route::get('/users', [SuperadminDashboardController::class, 'users'])->name('superadmin.users');
+        Route::post('/subscriptions/{subscription}/payment', [SuperadminDashboardController::class, 'payment'])
+            ->name('superadmin.subscriptions.payment');
 
         // Prueba de tiempo real: ver estado Echo/Reverb y enviar evento order.updated
         Route::get('/realtime-test', function () {

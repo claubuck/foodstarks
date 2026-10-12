@@ -66,6 +66,11 @@ controlador (`$this->middleware(...)`, funciona porque `Controller` extiende `Il
 - Middleware `subscription.active` protege el panel (perfil y páginas de plan quedan fuera).
 - No hay cobro online (Mercado Pago no integrado): el restaurante pide el plan por mail a `SUPPORT_EMAIL`
   (`PlanGrid.vue`) y el superadmin lo asigna en `/superadmin`.
+- Cobro manual: `subscriptions.paid_at` / `amount_paid` / `payment_reference` los carga el superadmin
+  (`superadmin.subscriptions.payment`). `Subscription::paymentStatus()` = `free` | `paid` | `pending`.
+- Panel `/superadmin`: métricas (MRR estimado, cobrado del mes, pendientes, por vencer), restaurantes con
+  filtros, detalle (`superadmin.restaurants.show`) y usuarios (`superadmin.users`). `users.last_login` se
+  graba en el login.
 
 ### Flujo principal (POS)
 1. `Dashboard` (`DashboardController`): stats del día, grilla de mesas con su pedido activo y
