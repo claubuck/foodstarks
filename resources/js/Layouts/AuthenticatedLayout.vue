@@ -39,13 +39,13 @@ const navLinkClass = (isActive) =>
 
     <!-- Sidebar -->
     <aside
-      class="fixed inset-y-0 left-0 z-40 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out"
+      class="fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-white shadow-lg transform transition-transform duration-300 ease-in-out"
       :class="
         isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       "
     >
       <!-- Logo -->
-      <div class="flex items-center h-16 border-b px-4">
+      <div class="flex shrink-0 items-center h-16 border-b px-4">
         <Link :href="route('dashboard')" class="flex min-w-0 items-center gap-3">
           <img
             v-if="$page.props.auth.restaurant?.logo_url"
@@ -80,7 +80,7 @@ const navLinkClass = (isActive) =>
       </div>
 
       <!-- Navigation Menu -->
-      <nav class="flex-1 overflow-y-auto">
+      <nav class="min-h-0 flex-1 overflow-y-auto">
         <div class="flex flex-col px-4 py-4">
           <Link
             :href="route('dashboard')"
@@ -190,17 +190,17 @@ const navLinkClass = (isActive) =>
       </nav>
 
       <!-- User Menu -->
-      <div class="border-t p-4">
+      <div class="shrink-0 border-t p-4">
         <div class="flex items-center">
-          <div class="flex-1">
-            <div class="text-sm font-medium text-gray-800">
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-sm font-medium text-gray-800">
               {{ $page.props.auth.user.name }}
             </div>
-            <div class="text-xs text-gray-600">
+            <div class="truncate text-xs text-gray-600">
               {{ $page.props.auth.user.email }}
             </div>
           </div>
-          <Dropdown align="right" width="48">
+          <Dropdown align="right" width="48" direction="up">
             <template #trigger>
               <button class="text-gray-400 hover:text-gray-600">
                 <svg

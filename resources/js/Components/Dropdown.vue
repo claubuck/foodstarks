@@ -14,6 +14,11 @@ const props = defineProps({
         type: String,
         default: 'py-1 bg-white',
     },
+    // 'up' abre el menú hacia arriba (para triggers pegados al borde inferior)
+    direction: {
+        type: String,
+        default: 'down',
+    },
 });
 
 const closeOnEscape = (e) => {
@@ -32,6 +37,9 @@ const widthClass = computed(() => {
 });
 
 const alignmentClasses = computed(() => {
+    if (props.direction === 'up') {
+        return props.align === 'left' ? 'origin-bottom-left start-0' : 'origin-bottom-right end-0';
+    }
     if (props.align === 'left') {
         return 'ltr:origin-top-left rtl:origin-top-right start-0';
     } else if (props.align === 'right') {
@@ -67,8 +75,8 @@ const open = ref(false);
         >
             <div
                 v-show="open"
-                class="absolute z-50 mt-2 rounded-md shadow-lg"
-                :class="[widthClass, alignmentClasses]"
+                class="absolute z-50 rounded-md shadow-lg"
+                :class="[widthClass, alignmentClasses, direction === 'up' ? 'bottom-full mb-2' : 'mt-2']"
                 @click="open = false"
             >
                 <div
