@@ -9,7 +9,6 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Table;
-use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -231,8 +230,9 @@ class OrderController extends Controller
     {
         try {
             OrderUpdated::dispatch($branchId);
-        } catch (BroadcastException $e) {
-            Log::warning('Broadcast OrderUpdated falló (Reverb puede no estar disponible)', [
+        } catch (\Throwable $e) {
+            // Reverb caído o Redis (cola) inaccesible: el pedido ya se guardó, no devolver 500.
+            Log::warning('Broadcast OrderUpdated falló (Reverb o Redis no disponibles)', [
                 'branch_id' => $branchId,
                 'message' => $e->getMessage(),
             ]);
